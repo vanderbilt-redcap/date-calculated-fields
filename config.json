@@ -1,0 +1,109 @@
+{
+  "name": "Date Calculated Fields",
+
+  "namespace": "Vanderbilt\\DateCalculatedFieldsExternalModule",
+
+  "authors": [
+    {
+      "name": "Ryan Moore",
+      "email": "datacore@vanderbilt.edu",
+      "institution": "Vanderbilt University Medical Center"
+    }
+  ],
+
+  "description": "Allows for piping from date fields to other date fields, regardless of format. Can pipe data across events within a REDCap project.",
+
+  "permissions": [
+    "redcap_every_page_before_render",
+    "select_data",
+    "redcap_module_link_check_display",
+    "redcap_data_entry_form",
+    "redcap_survey_page",
+    "redcap_save_record"
+  ],
+
+  "links": {
+    "project": [
+
+    ]
+  },
+
+  "no-auth-pages":[""],
+
+  "project-settings": [
+    {
+      "key": "piping-list",
+      "name": "Piping Field List",
+      "type": "sub_settings",
+      "repeatable": true,
+      "sub_settings":[
+        {
+          "key": "source",
+          "name": "Field to Read Date From",
+          "required": true,
+          "type": "field-list"
+        },
+        {
+          "key": "source-overwrite",
+          "name": "Overwrite Existing Data in Fields Being Piped To",
+          "type": "checkbox"
+        },
+        {
+          "key": "source-list",
+          "name": "Details of Where to Pipe",
+          "type": "sub_settings",
+          "repeatable": true,
+          "sub_settings":[
+            {
+              "key": "destination",
+              "name": "Destination Field",
+              "type": "field-list",
+              "required": true
+            },
+            {
+              "key": "days-difference",
+              "name": "Days To Add/Subtract from Source Date (to Subtract, use a -), Leave Blank to Use Event 'Days Offset' Settings",
+              "type": "text",
+              "required": true
+            },
+            {
+              "key": "pipe-to-event",
+              "name": "Need Values Piped to Other Events",
+              "type": "checkbox"
+            },
+            {
+              "key": "event-pipe",
+              "name": "Event(s) to Pipe To",
+              "type": "event-list",
+              "repeatable": true
+            },
+            {
+              "key": "event-source",
+              "name": "Event To Start Piping From (Leave blank if need to have all events pipe to other events)",
+              "type": "event-list"
+            },
+            {
+              "key": "event-start-date",
+              "name": "Start Date Range Field to Pipe To (if applicable)",
+              "type": "field-list"
+            },
+            {
+              "key": "event-end-date",
+              "name": "End Date Range Field to Pipe To (if appicable)",
+              "type": "field-list"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+
+  "system-settings": [
+  ],
+  "compatibility": {
+    "php-version-min": "5.5.0",
+    "php-version-max": "",
+    "redcap-version-min": "8.0.0",
+    "redcap-version-max": ""
+  }
+}
