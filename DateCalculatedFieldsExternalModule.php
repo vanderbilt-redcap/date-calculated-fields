@@ -45,20 +45,22 @@ class DateCalculatedFieldsExternalModule extends AbstractExternalModule
 						if ($this->getProjectSetting('event-source')[$index][$destIndex] != "" && $event_id != $this->getProjectSetting('event-source')[$index][$destIndex]) continue;
 						$eventsWithForm = $Proj->getEventsFormDesignated($Proj->metadata[$destinationField]['form_name']);
 
-						$eventList = array();
-						$currentEvent = false;
-						if (!empty($this->getProjectSetting('event-pipe')[$index][$destIndex])) {
-							$eventList = $this->getProjectSetting('event-pipe')[$index][$destIndex];
-						}
-						else {
-							$eventList = array_keys($Proj->events[getArm()]['events']);
-						}
+						$eventList = array_keys($Proj->events[getArm()]['events']);
+						$eventPipeList = $this->getProjectSetting('event-pipe')[$index][$destIndex];
+
 						$currentEventIndex = array_search($event_id,$eventList);
+						$currentEvent = false;
 
 						foreach ($eventList as $eventIndex => $eventToPipe) {
+							if ($eventToPipe == $event_id) {
+								$currentEvent = true;
+							}
 							$postDate = new \DateTime(db_real_escape_string($_POST[$fieldName]));
 
 							if (!in_array($eventToPipe,$eventsWithForm)) continue;
+							if (!in_array($eventToPipe,$eventPipeList)) continue;
+							if ($eventToPipe == $event_id && in_array($destinationField,$fieldsOnForm)) continue;
+
 							$eventInfo = $Proj->eventInfo[$eventToPipe];
 							$daysOffset = "";
 							if ($daysAdd[$index][$destIndex] != "") {
@@ -67,14 +69,14 @@ class DateCalculatedFieldsExternalModule extends AbstractExternalModule
 								$fieldsToSave[$record][$eventToPipe][$destinationField] = $newDate->format($this->getDateFormat($Proj->metadata[$destinationField]['element_validation_type'],'php'));*/
 							}
 							else {
-								$daysOffset = $eventInfo['day_offset'];
+								$daysOffset = $eventInfo['day_offset'] - $Proj->eventInfo[$event_id]['day_offset'];
 								/*$newDate = date_add($postDate,date_interval_create_from_date_string($eventInfo['day_offset'].' days'));
 								$fieldsToSave[$record][$eventToPipe][$destinationField] = $newDate->format($this->getDateFormat($Proj->metadata[$destinationField]['element_validation_type'],'php'));*/
 							}
 
-							if ($currentEventIndex != $eventIndex && $currentEventIndex !== "" && in_array($destinationField,array_keys($fieldsOnForm))) {
+							if ($currentEvent) {
 								$newDate = date_add($postDate, date_interval_create_from_date_string($daysOffset . ' days'));
-								$fieldsToSave[$record][$eventToPipe][$destinationField] = $newDate->format($this->getDateFormat($Proj->metadata[$destinationField]['element_validation_type'], 'php'));
+								$fieldsToSave[$record][$eventToPipe][$destinationField] = $newDate->format($this->dateSaveFormat($Proj->metadata[$destinationField]['element_validation_type']));
 							}
 
 							if ($this->getProjectSetting('event-start-date')[$index][$destIndex] != "") {
@@ -82,7 +84,7 @@ class DateCalculatedFieldsExternalModule extends AbstractExternalModule
 								if (in_array($eventToPipe,$eventsWithStart)) {
 									$postDate = new \DateTime(db_real_escape_string($_POST[$fieldName]));
 									$startDate = date_add($postDate, date_interval_create_from_date_string(((int)$daysOffset - (int)$eventInfo['offset_min']) . ' days'));
-									$fieldsToSave[$record][$eventToPipe][$this->getProjectSetting('event-start-date')[$index][$destIndex]] = $startDate->format($this->getDateFormat($Proj->metadata[$this->getProjectSetting('event-start-date')[$index][$destIndex]]['element_validation_type'], 'php'));
+									$fieldsToSave[$record][$eventToPipe][$this->getProjectSetting('event-start-date')[$index][$destIndex]] = $startDate->format($this->dateSaveFormat($Proj->metadata[$this->getProjectSetting('event-start-date')[$index][$destIndex]]['element_validation_type']));
 								}
 							}
 							if ($this->getProjectSetting('event-end-date')[$index][$destIndex] != "") {
@@ -90,7 +92,7 @@ class DateCalculatedFieldsExternalModule extends AbstractExternalModule
 								if (in_array($eventToPipe,$eventsWithEnd)) {
 									$postDate = new \DateTime(db_real_escape_string($_POST[$fieldName]));
 									$endDate = date_add($postDate, date_interval_create_from_date_string(((int)$daysOffset + (int)$eventInfo['offset_max']) . ' days'));
-									$fieldsToSave[$record][$eventToPipe][$this->getProjectSetting('event-end-date')[$index][$destIndex]] = $endDate->format($this->getDateFormat($Proj->metadata[$this->getProjectSetting('event-start-date')[$index][$destIndex]]['element_validation_type'], 'php'));
+									$fieldsToSave[$record][$eventToPipe][$this->getProjectSetting('event-end-date')[$index][$destIndex]] = $endDate->format($this->dateSaveFormat($Proj->metadata[$this->getProjectSetting('event-start-date')[$index][$destIndex]]['element_validation_type']));
 								}
 							}
 							/*if (!empty($fieldsToSave)) {
@@ -101,7 +103,8 @@ class DateCalculatedFieldsExternalModule extends AbstractExternalModule
 					elseif (!in_array($destinationField,array_keys($fieldsOnForm))) {
 						$postDate = new \DateTime(db_real_escape_string($_POST[$fieldName]));
 						$newDate = date_add($postDate,date_interval_create_from_date_string($daysAdd[$index][$destIndex].' days'));
-						$fieldsToSave[$record][$event_id][$destinationField] = $newDate->format($this->getDateFormat($Proj->metadata[$destinationField]['element_validation_type'],'php'));
+
+						$fieldsToSave[$record][$event_id][$destinationField] = $newDate->format($this->dateSaveFormat($Proj->metadata[$destinationField]['element_validation_type']));
 						/*if (!empty($fieldsToSave)) {
 							$output = \Records::saveData($project_id,'array',$fieldsToSave,$overwriteText);
 						}*/
@@ -111,12 +114,15 @@ class DateCalculatedFieldsExternalModule extends AbstractExternalModule
 			if (!empty($fieldsToSave)) {
 				$output = \Records::saveData($project_id,'array',$fieldsToSave,$overwriteText);
 			}
-			/*echo "<pre>";
+			echo "<pre>";
+			print_r($output);
+			echo "</pre>";
+			echo "<pre>";
 			print_r($fieldsToSave);
 			echo "</pre>";
-			exit;*/
+			//exit;
 		}
-		//exit;
+		exit;
 	}
 
 	function redcap_module_link_check_display($project_id, $link, $record, $instrument, $instance, $page) {
@@ -169,6 +175,19 @@ class DateCalculatedFieldsExternalModule extends AbstractExternalModule
 		}
 
 		return $javaString;
+	}
+
+	function dateSaveFormat($validation_type) {
+		$format = "Y-m-d";
+		if (strpos($validation_type,"datetime_") !== false) {
+			if (strpos($validation_type,"_seconds_") !== false) {
+				$format = "Y-m-d H:i:s";
+			}
+			else {
+				$format = "Y-m-d H:i";
+			}
+		}
+		return $format;
 	}
 
 	function getDateFormat($elementValidationType, $type) {
