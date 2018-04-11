@@ -114,15 +114,15 @@ class DateCalculatedFieldsExternalModule extends AbstractExternalModule
 			if (!empty($fieldsToSave)) {
 				$output = \Records::saveData($project_id,'array',$fieldsToSave,$overwriteText);
 			}
-			echo "<pre>";
+			/*echo "<pre>";
 			print_r($output);
 			echo "</pre>";
 			echo "<pre>";
 			print_r($fieldsToSave);
-			echo "</pre>";
+			echo "</pre>";*/
 			//exit;
 		}
-		exit;
+		//exit;
 	}
 
 	function redcap_module_link_check_display($project_id, $link, $record, $instrument, $instance, $page) {
