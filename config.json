@@ -91,6 +91,16 @@
               "key": "event-end-date",
               "name": "End Date Range Field to Pipe To (if appicable)",
               "type": "field-list"
+            },
+            {
+              "key": "start-days-add",
+              "name": "Days to Add to Start Date Range (leave blank to use event definition)",
+              "type": "text"
+            },
+            {
+              "key": "end-days-add",
+              "name": "Days to Add to End Date Range (leave blank to use event definition)",
+              "type": "text"
             }
           ]
         }

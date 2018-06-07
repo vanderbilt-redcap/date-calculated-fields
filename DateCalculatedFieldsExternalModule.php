@@ -80,10 +80,19 @@ class DateCalculatedFieldsExternalModule extends AbstractExternalModule
 							}
 
 							if ($this->getProjectSetting('event-start-date')[$index][$destIndex] != "") {
+
 								$eventsWithStart = $Proj->getEventsFormDesignated($Proj->metadata[$this->getProjectSetting('event-start-date')[$index][$destIndex]]['form_name']);
 								if (in_array($eventToPipe,$eventsWithStart)) {
 									$postDate = new \DateTime(db_real_escape_string($_POST[$fieldName]));
-									$startDate = date_add($postDate, date_interval_create_from_date_string(((int)$daysOffset - (int)$eventInfo['offset_min']) . ' days'));
+									$startOffset = "";
+									if ($this->getProjectSetting('start-days-add')[$index][$destIndex] != "" && is_numeric($this->getProjectSetting('start-days-add')[$index][$destIndex])) {
+										$startOffset = (int)$this->getProjectSetting('start-days-add')[$index][$destIndex];
+									}
+									else {
+										$startOffset = '-'.(int)$eventInfo['offset_min'];
+									}
+									$startDate = date_add($postDate, date_interval_create_from_date_string((int)$daysOffset . ' days'));
+									$startDate = date_add($startDate, date_interval_create_from_date_string($startOffset . ' days'));
 									$fieldsToSave[$record][$eventToPipe][$this->getProjectSetting('event-start-date')[$index][$destIndex]] = $startDate->format($this->dateSaveFormat($Proj->metadata[$this->getProjectSetting('event-start-date')[$index][$destIndex]]['element_validation_type']));
 								}
 							}
@@ -91,8 +100,16 @@ class DateCalculatedFieldsExternalModule extends AbstractExternalModule
 								$eventsWithEnd = $Proj->getEventsFormDesignated($Proj->metadata[$this->getProjectSetting('event-end-date')[$index][$destIndex]]['form_name']);
 								if (in_array($eventToPipe,$eventsWithEnd)) {
 									$postDate = new \DateTime(db_real_escape_string($_POST[$fieldName]));
-									$endDate = date_add($postDate, date_interval_create_from_date_string(((int)$daysOffset + (int)$eventInfo['offset_max']) . ' days'));
-									$fieldsToSave[$record][$eventToPipe][$this->getProjectSetting('event-end-date')[$index][$destIndex]] = $endDate->format($this->dateSaveFormat($Proj->metadata[$this->getProjectSetting('event-start-date')[$index][$destIndex]]['element_validation_type']));
+									$endOffset = "";
+									if ($this->getProjectSetting('end-days-add')[$index][$destIndex] != "" && is_numeric($this->getProjectSetting('end-days-add')[$index][$destIndex])) {
+										$endOffset = (int)$this->getProjectSetting('end-days-add')[$index][$destIndex];
+									}
+									else {
+										$endOffset = (int)$eventInfo['offset_min'];
+									}
+									$endDate = date_add($postDate, date_interval_create_from_date_string((int)$daysOffset . ' days'));
+									$endDate = date_add($endDate, date_interval_create_from_date_string((int)$endOffset . ' days'));
+									$fieldsToSave[$record][$eventToPipe][$this->getProjectSetting('event-end-date')[$index][$destIndex]] = $endDate->format($this->dateSaveFormat($Proj->metadata[$this->getProjectSetting('event-end-date')[$index][$destIndex]]['element_validation_type']));
 								}
 							}
 							/*if (!empty($fieldsToSave)) {
