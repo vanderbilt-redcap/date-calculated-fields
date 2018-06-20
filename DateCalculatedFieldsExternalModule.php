@@ -71,7 +71,8 @@ class DateCalculatedFieldsExternalModule extends AbstractExternalModule
 							$daysOffset = "";
 							# If we don't specify the number of days to add per event in the project, use the project's event days offset setting
 							if ($daysAdd[$index][$destIndex] != "") {
-								$daysOffset = $daysAdd[$index][$destIndex] * (($eventIndex - $currentEventIndex)+1);
+								//$daysOffset = $daysAdd[$index][$destIndex] * (($eventIndex - $currentEventIndex)+1);
+								$daysOffset = $daysAdd[$index][$destIndex];
 								/*$newDate = date_add($postDate,date_interval_create_from_date_string($daysAdd[$index][$destIndex].' days'));
 								$fieldsToSave[$record][$eventToPipe][$destinationField] = $newDate->format($this->getDateFormat($Proj->metadata[$destinationField]['element_validation_type'],'php'));*/
 							}
@@ -148,6 +149,7 @@ class DateCalculatedFieldsExternalModule extends AbstractExternalModule
 				$output = \Records::saveData($project_id,'array',$fieldsToSave,$overwriteText);
 			}
 		}
+		//exit;
 	}
 
 	function redcap_module_link_check_display($project_id, $link, $record, $instrument, $instance, $page) {
