@@ -63,8 +63,7 @@
             {
               "key": "days-difference",
               "name": "Days To Add/Subtract from Source Date (to Subtract, use a -), Leave Blank to Use Event 'Days Offset' Settings",
-              "type": "text",
-              "required": true
+              "type": "text"
             },
             {
               "key": "pipe-to-event",
