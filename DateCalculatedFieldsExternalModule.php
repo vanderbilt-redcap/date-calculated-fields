@@ -195,7 +195,20 @@ class DateCalculatedFieldsExternalModule extends AbstractExternalModule
 				# For each field to pipe to, need to generate their own date format based on the field's validation settings
 				foreach ($destinationFields[$index] as $destIndex => $destinationField) {
 					if (in_array($destinationField,array_keys($fieldsOnForm))) {
-						$javaString .= "var mySubDate = new Date(date.getTime()-userTimezoneOffset+(" . $daysAdd[$index][$destIndex] . "*86400000));
+						$daysOffset = "";
+						# If we don't specify the number of days to add per event in the project, use the project's event days offset setting
+						if ($daysAdd[$index][$destIndex] != "") {
+							//$daysOffset = $daysAdd[$index][$destIndex] * (($eventIndex - $currentEventIndex)+1);
+							$daysOffset = $daysAdd[$index][$destIndex];
+							/*$newDate = date_add($postDate,date_interval_create_from_date_string($daysAdd[$index][$destIndex].' days'));
+							$fieldsToSave[$record][$eventToPipe][$destinationField] = $newDate->format($this->getDateFormat($Proj->metadata[$destinationField]['element_validation_type'],'php'));*/
+						}
+						else {
+							$daysOffset = "0";
+							/*$newDate = date_add($postDate,date_interval_create_from_date_string($eventInfo['day_offset'].' days'));
+							$fieldsToSave[$record][$eventToPipe][$destinationField] = $newDate->format($this->getDateFormat($Proj->metadata[$destinationField]['element_validation_type'],'php'));*/
+						}
+						$javaString .= "var mySubDate = new Date(date.getTime()-userTimezoneOffset+(" . $daysOffset . "*86400000));
 									$('input[name=$destinationField]').val(";
 						$javaString .= $this->getDateFormat($project->metadata[$destinationField]['element_validation_type'],'javascript');
 						//mySubDate$destIndex.getUTCFullYear()+'-'+addZ(mySubDate$destIndex.getUTCMonth()+1)+'-'+addZ(mySubDate$destIndex.getUTCDate())
