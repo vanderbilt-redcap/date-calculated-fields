@@ -44,11 +44,6 @@
           "type": "field-list"
         },
         {
-          "key": "source-overwrite",
-          "name": "Overwrite Existing Data in Fields Being Piped To",
-          "type": "checkbox"
-        },
-        {
           "key": "source-list",
           "name": "Details of Where to Pipe",
           "type": "sub_settings",

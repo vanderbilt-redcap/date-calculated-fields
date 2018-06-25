@@ -43,6 +43,7 @@ class DateCalculatedFieldsExternalModule extends AbstractExternalModule
 			# Make sure that the field that we're piping was submitted on the record save
 			if (in_array($fieldName,array_keys($_POST)) && $_POST[$fieldName] != "") {
 				foreach ($destinationFields[$index] as $destIndex => $destinationField) {
+					if ($this->getDateFormat($Proj->metadata[$destinationField]['element_validation_type'],'','php') == "") continue;
 					# Make sure that we want to pipe to other events
 					if ($this->getProjectSetting('pipe-to-event')[$index][$destIndex] == "1") {
 						# Make sure that the event we're on is one of the source events for piping
@@ -172,6 +173,7 @@ class DateCalculatedFieldsExternalModule extends AbstractExternalModule
 		$daysAdd = $this->getProjectSetting('days-difference');
 		#Get the list of fields that exist on the current form
 		$fieldsOnForm = $project->forms[$instrument]['fields'];
+		$eventInfo = $project->eventInfo[$event_id];
 		$javaString = "";
 
 		foreach($sourceFields as $index => $fieldName) {
@@ -195,6 +197,9 @@ class DateCalculatedFieldsExternalModule extends AbstractExternalModule
 				# For each field to pipe to, need to generate their own date format based on the field's validation settings
 				foreach ($destinationFields[$index] as $destIndex => $destinationField) {
 					if (in_array($destinationField,array_keys($fieldsOnForm))) {
+						if ($this->getProjectSetting('event-source')[$index][$destIndex] != "" && $event_id != $this->getProjectSetting('event-source')[$index][$destIndex]) continue;
+						$eventPipeList = $this->getProjectSetting('event-pipe')[$index][$destIndex];
+						if ($this->getProjectSetting('pipe-to-event')[$index][$destIndex] == "1" && !in_array($event_id,$eventPipeList)) continue;
 						$daysOffset = "";
 						# If we don't specify the number of days to add per event in the project, use the project's event days offset setting
 						if ($daysAdd[$index][$destIndex] != "") {
@@ -210,9 +215,48 @@ class DateCalculatedFieldsExternalModule extends AbstractExternalModule
 						}
 						$javaString .= "var mySubDate = new Date(date.getTime()-userTimezoneOffset+(" . $daysOffset . "*86400000));
 									$('input[name=$destinationField]').val(";
-						$javaString .= $this->getDateFormat($project->metadata[$destinationField]['element_validation_type'],'javascript');
+						$javaString .= $this->getDateFormat($project->metadata[$destinationField]['element_validation_type'],'mySubDate','javascript');
 						//mySubDate$destIndex.getUTCFullYear()+'-'+addZ(mySubDate$destIndex.getUTCMonth()+1)+'-'+addZ(mySubDate$destIndex.getUTCDate())
 						$javaString .= ");";
+						# Make sure whether we need to pipe into a "Start Date" date range field
+						if ($this->getProjectSetting('event-start-date')[$index][$destIndex] != "") {
+
+							$eventsWithStart = $project->getEventsFormDesignated($project->metadata[$this->getProjectSetting('event-start-date')[$index][$destIndex]]['form_name']);
+							if (in_array($event_id,$eventsWithStart)) {
+								$startOffset = "";
+								# Use the default start day offset value for the REDCap event unless specified in the module settings
+								if ($this->getProjectSetting('start-days-add')[$index][$destIndex] != "" && is_numeric($this->getProjectSetting('start-days-add')[$index][$destIndex])) {
+									$startOffset = (int)$this->getProjectSetting('start-days-add')[$index][$destIndex];
+								}
+								else {
+									$startOffset = '-'.(int)$eventInfo['offset_min'];
+								}
+								$javaString .= "var myStartDate = new Date(date.getTime()-userTimezoneOffset+(" . $daysOffset . "*86400000)+(" . $startOffset . "*86400000));
+									$('input[name=".$this->getProjectSetting('event-start-date')[$index][$destIndex]."]').val(";
+								$javaString .= $this->getDateFormat($project->metadata[$this->getProjectSetting('event-start-date')[$index][$destIndex]]['element_validation_type'],'myStartDate','javascript');
+								//mySubDate$destIndex.getUTCFullYear()+'-'+addZ(mySubDate$destIndex.getUTCMonth()+1)+'-'+addZ(mySubDate$destIndex.getUTCDate())
+								$javaString .= ");";
+							}
+						}
+						# Make sure whether we need to pipe into a "End Date" date range field
+						if ($this->getProjectSetting('event-end-date')[$index][$destIndex] != "") {
+							$eventsWithEnd = $project->getEventsFormDesignated($project->metadata[$this->getProjectSetting('event-end-date')[$index][$destIndex]]['form_name']);
+							if (in_array($event_id,$eventsWithEnd)) {
+								$endOffset = "";
+								# Use the default end day offset value for the REDCap event unless specified in the module settings
+								if ($this->getProjectSetting('end-days-add')[$index][$destIndex] != "" && is_numeric($this->getProjectSetting('end-days-add')[$index][$destIndex])) {
+									$endOffset = (int)$this->getProjectSetting('end-days-add')[$index][$destIndex];
+								}
+								else {
+									$endOffset = (int)$eventInfo['offset_min'];
+								}
+								$javaString .= "var myEndDate = new Date(date.getTime()-userTimezoneOffset+(" . $daysOffset . "*86400000)+(" . $endOffset . "*86400000));
+									$('input[name=".$this->getProjectSetting('event-end-date')[$index][$destIndex]."]').val(";
+								$javaString .= $this->getDateFormat($project->metadata[$this->getProjectSetting('event-end-date')[$index][$destIndex]]['element_validation_type'],'myEndDate','javascript');
+								//mySubDate$destIndex.getUTCFullYear()+'-'+addZ(mySubDate$destIndex.getUTCMonth()+1)+'-'+addZ(mySubDate$destIndex.getUTCDate())
+								$javaString .= ");";
+							}
+						}
 					}
 				}
 				$javaString .= "}
@@ -252,7 +296,7 @@ class DateCalculatedFieldsExternalModule extends AbstractExternalModule
 	 * @param $type Either 'php' or 'javascript', based on where the data format string is being injected
 	 * @return Date format string
 	 */
-	function getDateFormat($elementValidationType, $type) {
+	function getDateFormat($elementValidationType, $fieldName, $type) {
 		$returnString = "";
 		switch ($elementValidationType) {
 			case "date_mdy":
@@ -260,7 +304,7 @@ class DateCalculatedFieldsExternalModule extends AbstractExternalModule
 					$returnString = "m-d-Y";
 				}
 				elseif ($type == "javascript") {
-					$returnString = "addZ(mySubDate.getUTCMonth()+1)+'-'+addZ(mySubDate.getUTCDate())+'-'+mySubDate.getUTCFullYear()";
+					$returnString = "addZ($fieldName.getUTCMonth()+1)+'-'+addZ($fieldName.getUTCDate())+'-'+$fieldName.getUTCFullYear()";
 				}
 				break;
 			case "date_dmy":
@@ -268,7 +312,7 @@ class DateCalculatedFieldsExternalModule extends AbstractExternalModule
 					$returnString = "d-m-Y";
 				}
 				elseif ($type == "javascript") {
-					$returnString = "addZ(mySubDate.getUTCDate())+'-'+addZ(mySubDate.getUTCMonth()+1)+'-'+mySubDate.getUTCFullYear()";
+					$returnString = "addZ($fieldName.getUTCDate())+'-'+addZ($fieldName.getUTCMonth()+1)+'-'+$fieldName.getUTCFullYear()";
 				}
 				break;
 			case "date_ymd":
@@ -276,7 +320,7 @@ class DateCalculatedFieldsExternalModule extends AbstractExternalModule
 					$returnString = "Y-m-d";
 				}
 				elseif ($type == "javascript") {
-					$returnString = "mySubDate.getUTCFullYear()+'-'+addZ(mySubDate.getUTCMonth()+1)+'-'+addZ(mySubDate.getUTCDate())";
+					$returnString = "$fieldName.getUTCFullYear()+'-'+addZ($fieldName.getUTCMonth()+1)+'-'+addZ($fieldName.getUTCDate())";
 				}
 				break;
 			case "datetime_mdy":
@@ -284,7 +328,7 @@ class DateCalculatedFieldsExternalModule extends AbstractExternalModule
 					$returnString = "m-d-Y H:i";
 				}
 				elseif ($type == "javascript") {
-					$returnString = "addZ(mySubDate.getUTCMonth()+1)+'-'+addZ(mySubDate.getUTCDate())+'-'+mySubDate.getUTCFullYear()+' '+addZ(mySubDate.getUTCHours())+':'+addZ(mySubDate.getUTCMinutes())";
+					$returnString = "addZ($fieldName.getUTCMonth()+1)+'-'+addZ($fieldName.getUTCDate())+'-'+$fieldName.getUTCFullYear()+' '+addZ($fieldName.getUTCHours())+':'+addZ($fieldName.getUTCMinutes())";
 				}
 				break;
 			case "datetime_dmy":
@@ -292,7 +336,7 @@ class DateCalculatedFieldsExternalModule extends AbstractExternalModule
 					$returnString = "d-m-Y H:i";
 				}
 				elseif ($type == "javascript") {
-					$returnString = "addZ(mySubDate.getUTCDate())+'-'+addZ(mySubDate.getUTCMonth()+1)+'-'+mySubDate.getUTCFullYear()+' '+addZ(mySubDate.getUTCHours())+':'+addZ(mySubDate.getUTCMinutes())";
+					$returnString = "addZ($fieldName.getUTCDate())+'-'+addZ($fieldName.getUTCMonth()+1)+'-'+$fieldName.getUTCFullYear()+' '+addZ($fieldName.getUTCHours())+':'+addZ($fieldName.getUTCMinutes())";
 				}
 				break;
 			case "datetime_ymd":
@@ -300,7 +344,7 @@ class DateCalculatedFieldsExternalModule extends AbstractExternalModule
 					$returnString = "Y-m-d H:i";
 				}
 				elseif ($type == "javascript") {
-					$returnString = "mySubDate.getUTCFullYear()+'-'+addZ(mySubDate.getUTCMonth()+1)+'-'+addZ(mySubDate.getUTCDate())+' '+addZ(mySubDate.getUTCHours())+':'+addZ(mySubDate.getUTCMinutes())";
+					$returnString = "$fieldName.getUTCFullYear()+'-'+addZ($fieldName.getUTCMonth()+1)+'-'+addZ($fieldName.getUTCDate())+' '+addZ($fieldName.getUTCHours())+':'+addZ($fieldName.getUTCMinutes())";
 				}
 				break;
 			case "datetime_seconds_mdy":
@@ -308,7 +352,7 @@ class DateCalculatedFieldsExternalModule extends AbstractExternalModule
 					$returnString = "m-d-Y H:i:s";
 				}
 				elseif ($type == "javascript") {
-					$returnString = "addZ(mySubDate.getUTCMonth()+1)+'-'+addZ(mySubDate.getUTCDate())+'-'+mySubDate.getUTCFullYear()+' '+addZ(mySubDate.getUTCHours())+':'+addZ(mySubDate.getUTCMinutes())+':'+addZ(mySubDate.getUTCSeconds())";
+					$returnString = "addZ($fieldName.getUTCMonth()+1)+'-'+addZ($fieldName.getUTCDate())+'-'+$fieldName.getUTCFullYear()+' '+addZ($fieldName.getUTCHours())+':'+addZ($fieldName.getUTCMinutes())+':'+addZ($fieldName.getUTCSeconds())";
 				}
 				break;
 			case "datetime_seconds_dmy":
@@ -316,7 +360,7 @@ class DateCalculatedFieldsExternalModule extends AbstractExternalModule
 					$returnString = "d-m-Y H:i:s";
 				}
 				elseif ($type == "javascript") {
-					$returnString = "addZ(mySubDate.getUTCDate())+'-'+addZ(mySubDate.getUTCMonth()+1)+'-'+mySubDate.getUTCFullYear()+' '+addZ(mySubDate.getUTCHours())+':'+addZ(mySubDate.getUTCMinutes())+':'+addZ(mySubDate.getUTCSeconds())";
+					$returnString = "addZ($fieldName.getUTCDate())+'-'+addZ($fieldName.getUTCMonth()+1)+'-'+$fieldName.getUTCFullYear()+' '+addZ($fieldName.getUTCHours())+':'+addZ($fieldName.getUTCMinutes())+':'+addZ($fieldName.getUTCSeconds())";
 				}
 				break;
 			case "datetime_seconds_ymd":
@@ -324,15 +368,12 @@ class DateCalculatedFieldsExternalModule extends AbstractExternalModule
 					$returnString = "Y-m-d H:i:s";
 				}
 				elseif ($type == "javascript") {
-					$returnString = "mySubDate.getUTCFullYear()+'-'+addZ(mySubDate.getUTCMonth()+1)+'-'+addZ(mySubDate.getUTCDate())+' '+addZ(mySubDate.getUTCHours())+':'+addZ(mySubDate.getUTCMinutes())+':'+addZ(mySubDate.getUTCSeconds())";
+					$returnString = "$fieldName.getUTCFullYear()+'-'+addZ($fieldName.getUTCMonth()+1)+'-'+addZ($fieldName.getUTCDate())+' '+addZ($fieldName.getUTCHours())+':'+addZ($fieldName.getUTCMinutes())+':'+addZ($fieldName.getUTCSeconds())";
 				}
 				break;
 			default:
 				$returnString = '';
 		}
 		return $returnString;
-	}
-
-	function processModuleActionTag($actionTag) {
 	}
 }
