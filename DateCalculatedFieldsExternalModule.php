@@ -192,8 +192,13 @@ class DateCalculatedFieldsExternalModule extends AbstractExternalModule
 									$javaString .= "dateValue = dateValue.replace(/(\d{2})-(\d{2})-(\d{4})/, '$2-$1-$3');";
 								}
 							}
-							$javaString .= "var date = new Date(dateValue);
-							var userTimezoneOffset = date.getTimezoneOffset() * 60000;";
+							$javaString .= "var date = new Date(dateValue);";
+							if (strpos($project->metadata[$fieldName]['element_validation_type'],"datetime_") !== false) {
+								$javaString .= "var userTimezoneOffset = date.getTimezoneOffset() * 60000;";
+							}
+							else {
+								$javaString .= "var userTimezoneOffset = 0;";
+							}
 				# For each field to pipe to, need to generate their own date format based on the field's validation settings
 				foreach ($destinationFields[$index] as $destIndex => $destinationField) {
 					if (in_array($destinationField,array_keys($fieldsOnForm))) {
@@ -214,6 +219,7 @@ class DateCalculatedFieldsExternalModule extends AbstractExternalModule
 							$fieldsToSave[$record][$eventToPipe][$destinationField] = $newDate->format($this->getDateFormat($Proj->metadata[$destinationField]['element_validation_type'],'php'));*/
 						}
 						$javaString .= "var mySubDate = new Date(date.getTime()-userTimezoneOffset+(" . $daysOffset . "*86400000));
+						console.log(date.getTime());
 									$('input[name=$destinationField]').val(";
 						$javaString .= $this->getDateFormat($project->metadata[$destinationField]['element_validation_type'],'mySubDate','javascript');
 						//mySubDate$destIndex.getUTCFullYear()+'-'+addZ(mySubDate$destIndex.getUTCMonth()+1)+'-'+addZ(mySubDate$destIndex.getUTCDate())
