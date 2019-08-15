@@ -63,8 +63,14 @@
             {
 
               "key": "pipe-to-event",
-              "name": "Need Values Piped to Other Events",
-              "type": "checkbox"
+              "name": "Pipe Dates to Other Events",
+              "type": "dropdown",
+              "choices": [
+                {
+                  "value": "1",
+                  "name": "Event"
+                }
+              ]
             },
             {
               "key": "event-pipe",

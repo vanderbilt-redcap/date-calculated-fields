@@ -8,6 +8,7 @@
 
 namespace Vanderbilt\DateCalculatedFieldsExternalModule;
 
+use DateTime;
 use ExternalModules\AbstractExternalModule;
 use ExternalModules\ExternalModules;
 
@@ -16,22 +17,17 @@ class DateCalculatedFieldsExternalModule extends AbstractExternalModule
 {
 	function redcap_data_entry_form($project_id, $record, $instrument, $event_id, $group_id = NULL, $repeat_instance = 1) {
 		global $Proj;
-		/*echo "<pre>";
-		print_r($this->getProjectSetting('event-pipe'));
-		echo "</pre>";*/
-		/*echo "<pre>";
-		print_r($Proj->events);
-		echo "</pre>";*/
-		echo $this->createCalcuationJava($Proj,$instrument,$event_id);
+		echo $this->createCalcuationJava($Proj,$instrument,$record,$event_id,$repeat_instance);
 	}
 
 	function redcap_survey_page($project_id, $record, $instrument, $event_id, $group_id, $survey_hash, $response_id = NULL, $repeat_instance = 1) {
 		global $Proj;
-		echo $this->createCalcuationJava($Proj,$instrument,$event_id);
+		echo $this->createCalcuationJava($Proj,$instrument,$record,$event_id,$repeat_instance);
 	}
 
 	function redcap_save_record($project_id, $record, $instrument, $event_id, $group_id, $survey_hash = NULL, $response_id = NULL, $repeat_instance = 1) {
 		global $Proj;
+
 		$sourceFields = $this->getProjectSetting('source');
 		$destinationFields = $this->getProjectSetting('destination');
 		$daysAdd = $this->getProjectSetting('days-difference');
@@ -165,116 +161,187 @@ class DateCalculatedFieldsExternalModule extends AbstractExternalModule
 	 * Generate the necessary Javascript code to get on-form data piping working.
 	 * @param $project REDCap Class object.
 	 * @param $instrument Form name of the current form.
+	 * @param $record_id ID of record being viewed
 	 * @param $event_id Event ID.
+	 * @param $instance Instance currently being viewed
 	 * @return String containing javascript code
 	 */
-	function createCalcuationJava(\Project $project,$instrument,$event_id) {
+	function createCalcuationJava(\Project $project,$instrument,$record_id,$event_id,$instance) {
 		$sourceFields = $this->getProjectSetting('source');
 		$destinationFields = $this->getProjectSetting('destination');
 		$daysAdd = $this->getProjectSetting('days-difference');
 		#Get the list of fields that exist on the current form
 		$fieldsOnForm = $project->forms[$instrument]['fields'];
 		$eventInfo = $project->eventInfo[$event_id];
-		$javaString = "";
-
+		$javaString = "<script>";
 		foreach($sourceFields as $index => $fieldName) {
-			# Make sure field exists on the current form
-			if (in_array($fieldName,array_keys($fieldsOnForm))) {
-				# Need to create an 'on blur' function for the field to be piped from
-				$javaString .= "<script>
-					$('input[name=$fieldName]').blur(function() {
+            $recordData = \Records::getData($project->project_id, 'array', array($record_id), array_merge($sourceFields, $destinationFields[$index]));
+
+            # Make sure field exists on the current form
+            if (in_array($fieldName, array_keys($fieldsOnForm))) {
+                # Need to create an 'on blur' function for the field to be piped from
+                $javaString .= "$('input[name=$fieldName]').blur(function() {
 						var dateValue = $(this).val();
 						if (dateValue != '') {";
-							if (strpos($project->metadata[$fieldName]['element_validation_type'],"_dmy") !== false) {
-								if (strpos($project->metadata[$fieldName]['element_validation_type'],"datetime_") !== false) {
-									$javaString .= "dateValue = dateValue.replace(/(\d{2})-(\d{2})-(\d{4}) (.*)/, '$2-$1-$3 $4');";
-								}
-								else {
-									$javaString .= "dateValue = dateValue.replace(/(\d{2})-(\d{2})-(\d{4})/, '$2-$1-$3');";
-								}
-							}
-							$javaString .= "var date = new Date(dateValue);";
-							if (strpos($project->metadata[$fieldName]['element_validation_type'],"datetime_") !== false) {
-								$javaString .= "var userTimezoneOffset = date.getTimezoneOffset() * 60000;";
-							}
-							else {
-								$javaString .= "var userTimezoneOffset = 0;";
-							}
-				# For each field to pipe to, need to generate their own date format based on the field's validation settings
-				foreach ($destinationFields[$index] as $destIndex => $destinationField) {
-					if (in_array($destinationField,array_keys($fieldsOnForm))) {
-						if ($this->getProjectSetting('event-source')[$index][$destIndex] != "" && $event_id != $this->getProjectSetting('event-source')[$index][$destIndex]) continue;
-						$eventPipeList = $this->getProjectSetting('event-pipe')[$index][$destIndex];
-						if ($this->getProjectSetting('pipe-to-event')[$index][$destIndex] == "1" && !in_array($event_id,$eventPipeList)) continue;
-						$daysOffset = "";
-						# If we don't specify the number of days to add per event in the project, use the project's event days offset setting
-						if ($daysAdd[$index][$destIndex] != "") {
-							//$daysOffset = $daysAdd[$index][$destIndex] * (($eventIndex - $currentEventIndex)+1);
-							$daysOffset = $daysAdd[$index][$destIndex];
-							/*$newDate = date_add($postDate,date_interval_create_from_date_string($daysAdd[$index][$destIndex].' days'));
-							$fieldsToSave[$record][$eventToPipe][$destinationField] = $newDate->format($this->getDateFormat($Proj->metadata[$destinationField]['element_validation_type'],'php'));*/
-						}
-						else {
-							$daysOffset = "0";
-							/*$newDate = date_add($postDate,date_interval_create_from_date_string($eventInfo['day_offset'].' days'));
-							$fieldsToSave[$record][$eventToPipe][$destinationField] = $newDate->format($this->getDateFormat($Proj->metadata[$destinationField]['element_validation_type'],'php'));*/
-						}
-						$javaString .= "var mySubDate = new Date(date.getTime()-userTimezoneOffset+(" . $daysOffset . "*86400000));
-						console.log(date.getTime());
-									$('input[name=$destinationField]').val(";
-						$javaString .= $this->getDateFormat($project->metadata[$destinationField]['element_validation_type'],'mySubDate','javascript');
-						//mySubDate$destIndex.getUTCFullYear()+'-'+addZ(mySubDate$destIndex.getUTCMonth()+1)+'-'+addZ(mySubDate$destIndex.getUTCDate())
-						$javaString .= ");";
-						# Make sure whether we need to pipe into a "Start Date" date range field
-						if ($this->getProjectSetting('event-start-date')[$index][$destIndex] != "") {
+                if (strpos($project->metadata[$fieldName]['element_validation_type'], "_dmy") !== false) {
+                    if (strpos($project->metadata[$fieldName]['element_validation_type'], "datetime_") !== false) {
+                        $javaString .= "dateValue = dateValue.replace(/(\d{2})-(\d{2})-(\d{4}) (.*)/, '$2-$1-$3 $4');";
+                    } else {
+                        $javaString .= "dateValue = dateValue.replace(/(\d{2})-(\d{2})-(\d{4})/, '$2-$1-$3');";
+                    }
+                }
+                $javaString .= "dateValue = dateValue.replace(/-/g,'/');";
 
-							$eventsWithStart = $project->getEventsFormDesignated($project->metadata[$this->getProjectSetting('event-start-date')[$index][$destIndex]]['form_name']);
-							if (in_array($event_id,$eventsWithStart)) {
-								$startOffset = "";
-								# Use the default start day offset value for the REDCap event unless specified in the module settings
-								if ($this->getProjectSetting('start-days-add')[$index][$destIndex] != "" && is_numeric($this->getProjectSetting('start-days-add')[$index][$destIndex])) {
-									$startOffset = (int)$this->getProjectSetting('start-days-add')[$index][$destIndex];
-								}
-								else {
-									$startOffset = '-'.(int)$eventInfo['offset_min'];
-								}
-								$javaString .= "var myStartDate = new Date(date.getTime()-userTimezoneOffset+(" . $daysOffset . "*86400000)+(" . $startOffset . "*86400000));
-									$('input[name=".$this->getProjectSetting('event-start-date')[$index][$destIndex]."]').val(";
-								$javaString .= $this->getDateFormat($project->metadata[$this->getProjectSetting('event-start-date')[$index][$destIndex]]['element_validation_type'],'myStartDate','javascript');
-								//mySubDate$destIndex.getUTCFullYear()+'-'+addZ(mySubDate$destIndex.getUTCMonth()+1)+'-'+addZ(mySubDate$destIndex.getUTCDate())
-								$javaString .= ");";
-							}
-						}
-						# Make sure whether we need to pipe into a "End Date" date range field
-						if ($this->getProjectSetting('event-end-date')[$index][$destIndex] != "") {
-							$eventsWithEnd = $project->getEventsFormDesignated($project->metadata[$this->getProjectSetting('event-end-date')[$index][$destIndex]]['form_name']);
-							if (in_array($event_id,$eventsWithEnd)) {
-								$endOffset = "";
-								# Use the default end day offset value for the REDCap event unless specified in the module settings
-								if ($this->getProjectSetting('end-days-add')[$index][$destIndex] != "" && is_numeric($this->getProjectSetting('end-days-add')[$index][$destIndex])) {
-									$endOffset = (int)$this->getProjectSetting('end-days-add')[$index][$destIndex];
-								}
-								else {
-									$endOffset = (int)$eventInfo['offset_min'];
-								}
-								$javaString .= "var myEndDate = new Date(date.getTime()-userTimezoneOffset+(" . $daysOffset . "*86400000)+(" . $endOffset . "*86400000));
-									$('input[name=".$this->getProjectSetting('event-end-date')[$index][$destIndex]."]').val(";
-								$javaString .= $this->getDateFormat($project->metadata[$this->getProjectSetting('event-end-date')[$index][$destIndex]]['element_validation_type'],'myEndDate','javascript');
-								//mySubDate$destIndex.getUTCFullYear()+'-'+addZ(mySubDate$destIndex.getUTCMonth()+1)+'-'+addZ(mySubDate$destIndex.getUTCDate())
-								$javaString .= ");";
-							}
-						}
-					}
-				}
-				$javaString .= "}
-					});
-					
-					function addZ(n) {
+                $javaString .= "var date = new Date(dateValue);";
+                if (strpos($project->metadata[$fieldName]['element_validation_type'], "datetime_") !== false) {
+                    $javaString .= "var userTimezoneOffset = date.getTimezoneOffset() * 60000;";
+                } else {
+                    $javaString .= "var userTimezoneOffset = 0;";
+                }
+                # For each field to pipe to, need to generate their own date format based on the field's validation settings
+
+                foreach ($destinationFields[$index] as $destIndex => $destinationField) {
+                    if (in_array($destinationField, array_keys($fieldsOnForm))) {
+                        if ($this->getProjectSetting('event-source')[$index][$destIndex] != "" && $event_id != $this->getProjectSetting('event-source')[$index][$destIndex]) continue;
+                        $eventPipeList = $this->getProjectSetting('event-pipe')[$index][$destIndex];
+                        if ($this->getProjectSetting('pipe-to-event')[$index][$destIndex] == "1" && !in_array($event_id, $eventPipeList)) continue;
+                        $daysOffset = "";
+                        # If we don't specify the number of days to add per event in the project, use the project's event days offset setting
+                        if ($daysAdd[$index][$destIndex] != "") {
+                            //$daysOffset = $daysAdd[$index][$destIndex] * (($eventIndex - $currentEventIndex)+1);
+                            $daysOffset = $daysAdd[$index][$destIndex];
+                            /*$newDate = date_add($postDate,date_interval_create_from_date_string($daysAdd[$index][$destIndex].' days'));
+                            $fieldsToSave[$record][$eventToPipe][$destinationField] = $newDate->format($this->getDateFormat($Proj->metadata[$destinationField]['element_validation_type'],'php'));*/
+                        } else {
+                            $daysOffset = "0";
+                            /*$newDate = date_add($postDate,date_interval_create_from_date_string($eventInfo['day_offset'].' days'));
+                            $fieldsToSave[$record][$eventToPipe][$destinationField] = $newDate->format($this->getDateFormat($Proj->metadata[$destinationField]['element_validation_type'],'php'));*/
+                        }
+                        $javaString .= "var mySubDate = new Date(date.getTime()-userTimezoneOffset+(" . $daysOffset . "*86400000));
+									$('input[name=$destinationField]').val(";
+                        $javaString .= $this->getDateFormat($project->metadata[$destinationField]['element_validation_type'], 'mySubDate', 'javascript');
+                        //mySubDate$destIndex.getUTCFullYear()+'-'+addZ(mySubDate$destIndex.getUTCMonth()+1)+'-'+addZ(mySubDate$destIndex.getUTCDate())
+                        $javaString .= ");";
+                        # Make sure whether we need to pipe into a "Start Date" date range field
+                        if ($this->getProjectSetting('event-start-date')[$index][$destIndex] != "") {
+
+                            $eventsWithStart = $project->getEventsFormDesignated($project->metadata[$this->getProjectSetting('event-start-date')[$index][$destIndex]]['form_name']);
+                            if (in_array($event_id, $eventsWithStart)) {
+                                $startOffset = "";
+                                # Use the default start day offset value for the REDCap event unless specified in the module settings
+                                if ($this->getProjectSetting('start-days-add')[$index][$destIndex] != "" && is_numeric($this->getProjectSetting('start-days-add')[$index][$destIndex])) {
+                                    $startOffset = (int)$this->getProjectSetting('start-days-add')[$index][$destIndex];
+                                } else {
+                                    $startOffset = '-' . (int)$eventInfo['offset_min'];
+                                }
+                                $javaString .= "var myStartDate = new Date(date.getTime()-userTimezoneOffset+(" . $daysOffset . "*86400000)+(" . $startOffset . "*86400000));
+									$('input[name=" . $this->getProjectSetting('event-start-date')[$index][$destIndex] . "]').val(";
+                                $javaString .= $this->getDateFormat($project->metadata[$this->getProjectSetting('event-start-date')[$index][$destIndex]]['element_validation_type'], 'myStartDate', 'javascript');
+                                //mySubDate$destIndex.getUTCFullYear()+'-'+addZ(mySubDate$destIndex.getUTCMonth()+1)+'-'+addZ(mySubDate$destIndex.getUTCDate())
+                                $javaString .= ");";
+                            }
+                        }
+                        # Make sure whether we need to pipe into a "End Date" date range field
+                        if ($this->getProjectSetting('event-end-date')[$index][$destIndex] != "") {
+                            $eventsWithEnd = $project->getEventsFormDesignated($project->metadata[$this->getProjectSetting('event-end-date')[$index][$destIndex]]['form_name']);
+                            if (in_array($event_id, $eventsWithEnd)) {
+                                $endOffset = "";
+                                # Use the default end day offset value for the REDCap event unless specified in the module settings
+                                if ($this->getProjectSetting('end-days-add')[$index][$destIndex] != "" && is_numeric($this->getProjectSetting('end-days-add')[$index][$destIndex])) {
+                                    $endOffset = (int)$this->getProjectSetting('end-days-add')[$index][$destIndex];
+                                } else {
+                                    $endOffset = (int)$eventInfo['offset_min'];
+                                }
+                                $javaString .= "var myEndDate = new Date(date.getTime()-userTimezoneOffset+(" . $daysOffset . "*86400000)+(" . $endOffset . "*86400000));
+									$('input[name=" . $this->getProjectSetting('event-end-date')[$index][$destIndex] . "]').val(";
+                                $javaString .= $this->getDateFormat($project->metadata[$this->getProjectSetting('event-end-date')[$index][$destIndex]]['element_validation_type'], 'myEndDate', 'javascript');
+                                //mySubDate$destIndex.getUTCFullYear()+'-'+addZ(mySubDate$destIndex.getUTCMonth()+1)+'-'+addZ(mySubDate$destIndex.getUTCDate())
+                                $javaString .= ");";
+                            }
+                        }
+                    }
+                }
+                $javaString .= "}
+					});";
+            }
+
+            $sourceFieldForm = $project->metadata[$fieldName]['form_name'];
+
+            $sourceDate = ($recordData[$record_id]['repeat_instances'][$event_id][$sourceFieldForm][intval($instance) - 1][$fieldName] != "" ? $recordData[$record_id]['repeat_instances'][$event_id][$sourceFieldForm][intval($instance) - 1][$fieldName] : $recordData[$record_id][$event_id][$fieldName]);
+            if (!$this->validateDate($sourceDate)) continue;
+
+            $javaString .= "var instancedate = new Date('$sourceDate');";
+            if (strpos($project->metadata[$fieldName]['element_validation_type'], "datetime_") !== false) {
+                $javaString .= "var instanceuserTimezoneOffset = date.getTimezoneOffset() * 60000;";
+            } else {
+                $javaString .= "var instanceuserTimezoneOffset = 0;";
+            }
+            //$javaString .= "console.log('The date is: '+instancedate);";
+            foreach ($destinationFields[$index] as $destIndex => $destinationField) {
+                if ($this->getProjectSetting('pipe-to-event')[$index][$destIndex] != "2" || intval($instance) == 1) continue;
+                if ($this->getProjectSetting('pipe-to-event')[$index][$destIndex] == "2" && ($recordData[$record_id][$event_id][$fieldName] == "" && $recordData[$record_id]['repeat_instances'][$event_id][$sourceFieldForm][intval($instance) - 1][$fieldName] == "")) continue;
+                if (in_array($destinationField, array_keys($fieldsOnForm))) {
+                    $daysOffset = "";
+                    # If we don't specify the number of days to add per event in the project, use the project's event days offset setting
+                    if ($daysAdd[$index][$destIndex] != "") {
+                        //$daysOffset = $daysAdd[$index][$destIndex] * (($eventIndex - $currentEventIndex)+1);
+                        $daysOffset = $daysAdd[$index][$destIndex];
+                        /*$newDate = date_add($postDate,date_interval_create_from_date_string($daysAdd[$index][$destIndex].' days'));
+                        $fieldsToSave[$record][$eventToPipe][$destinationField] = $newDate->format($this->getDateFormat($Proj->metadata[$destinationField]['element_validation_type'],'php'));*/
+                    } else {
+                        $daysOffset = "0";
+                        /*$newDate = date_add($postDate,date_interval_create_from_date_string($eventInfo['day_offset'].' days'));
+                        $fieldsToSave[$record][$eventToPipe][$destinationField] = $newDate->format($this->getDateFormat($Proj->metadata[$destinationField]['element_validation_type'],'php'));*/
+                    }
+                    $javaString .= "var myInstanceSubDate = new Date(instancedate.getTime()-instanceuserTimezoneOffset+(" . $daysOffset . "*86400000));
+									$('input[name=$destinationField]').val(";
+                    $javaString .= $this->getDateFormat($project->metadata[$destinationField]['element_validation_type'], 'myInstanceSubDate', 'javascript');
+                    //mySubDate$destIndex.getUTCFullYear()+'-'+addZ(mySubDate$destIndex.getUTCMonth()+1)+'-'+addZ(mySubDate$destIndex.getUTCDate())
+                    $javaString .= ");";
+                    # Make sure whether we need to pipe into a "Start Date" date range field
+                    if ($this->getProjectSetting('event-start-date')[$index][$destIndex] != "") {
+
+                        $eventsWithStart = $project->getEventsFormDesignated($project->metadata[$this->getProjectSetting('event-start-date')[$index][$destIndex]]['form_name']);
+                        if (in_array($event_id, $eventsWithStart)) {
+                            $startOffset = "";
+                            # Use the default start day offset value for the REDCap event unless specified in the module settings
+                            if ($this->getProjectSetting('start-days-add')[$index][$destIndex] != "" && is_numeric($this->getProjectSetting('start-days-add')[$index][$destIndex])) {
+                                $startOffset = (int)$this->getProjectSetting('start-days-add')[$index][$destIndex];
+                            } else {
+                                $startOffset = '-' . (int)$eventInfo['offset_min'];
+                            }
+                            $javaString .= "var myInstanceStartDate = new Date(instancedate.getTime()-instanceuserTimezoneOffset+(" . $daysOffset . "*86400000)+(" . $startOffset . "*86400000));
+									$('input[name=" . $this->getProjectSetting('event-start-date')[$index][$destIndex] . "]').val(";
+                            $javaString .= $this->getDateFormat($project->metadata[$this->getProjectSetting('event-start-date')[$index][$destIndex]]['element_validation_type'], 'myInstanceStartDate', 'javascript');
+                            //mySubDate$destIndex.getUTCFullYear()+'-'+addZ(mySubDate$destIndex.getUTCMonth()+1)+'-'+addZ(mySubDate$destIndex.getUTCDate())
+                            $javaString .= ");";
+                        }
+                    }
+                    # Make sure whether we need to pipe into a "End Date" date range field
+                    if ($this->getProjectSetting('event-end-date')[$index][$destIndex] != "") {
+                        $eventsWithEnd = $project->getEventsFormDesignated($project->metadata[$this->getProjectSetting('event-end-date')[$index][$destIndex]]['form_name']);
+                        if (in_array($event_id, $eventsWithEnd)) {
+                            $endOffset = "";
+                            # Use the default end day offset value for the REDCap event unless specified in the module settings
+                            if ($this->getProjectSetting('end-days-add')[$index][$destIndex] != "" && is_numeric($this->getProjectSetting('end-days-add')[$index][$destIndex])) {
+                                $endOffset = (int)$this->getProjectSetting('end-days-add')[$index][$destIndex];
+                            } else {
+                                $endOffset = (int)$eventInfo['offset_min'];
+                            }
+                            $javaString .= "var myInstanceEndDate = new Date(instancedate.getTime()-instanceuserTimezoneOffset+(" . $daysOffset . "*86400000)+(" . $endOffset . "*86400000));
+									$('input[name=" . $this->getProjectSetting('event-end-date')[$index][$destIndex] . "]').val(";
+                            $javaString .= $this->getDateFormat($project->metadata[$this->getProjectSetting('event-end-date')[$index][$destIndex]]['element_validation_type'], 'myInstanceEndDate', 'javascript');
+                            //mySubDate$destIndex.getUTCFullYear()+'-'+addZ(mySubDate$destIndex.getUTCMonth()+1)+'-'+addZ(mySubDate$destIndex.getUTCDate())
+                            $javaString .= ");";
+                        }
+                    }
+                }
+            }
+        }
+        $javaString .= "function addZ(n) {
 					  return n < 10 ? '0' + n : '' + n;
 					}
 				</script>";
-			}
-		}
 
 		return $javaString;
 	}
@@ -383,4 +450,10 @@ class DateCalculatedFieldsExternalModule extends AbstractExternalModule
 		}
 		return $returnString;
 	}
+
+    function validateDate($date,$format='Y-m-d') {
+        $d = DateTime::createFromFormat($format, $date);
+        // The Y ( 4 digits year ) returns TRUE for any integer with any number of digits so changing the comparison from == to === fixes the issue.
+        return $d && $d->format($format) === $date;
+    }
 }
