@@ -83,10 +83,10 @@ class DateCalculatedFieldsExternalModule extends AbstractExternalModule
 								$fieldsToSave[$record][$eventToPipe][$destinationField] = $newDate->format($this->getDateFormat($Proj->metadata[$destinationField]['element_validation_type'],'php'));*/
 							}
 
-							if ($currentEvent) {
+							//if ($currentEvent) {
 								$newDate = date_add($postDate, date_interval_create_from_date_string($daysOffset . ' days'));
 								$fieldsToSave[$record][$eventToPipe][$destinationField] = $newDate->format($this->dateSaveFormat($Proj->metadata[$destinationField]['element_validation_type']));
-							}
+							//}
 
 							# Make sure whether we need to pipe into a "Start Date" date range field
 							if ($this->getProjectSetting('event-start-date')[$index][$destIndex] != "") {
