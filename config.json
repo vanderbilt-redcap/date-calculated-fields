@@ -71,7 +71,6 @@
               "type": "event-list",
               "repeatable": true
             },
-
             {
               "key": "event-source",
               "name": "Event To Start Piping From (Leave blank if need to have all events pipe to other events)",
