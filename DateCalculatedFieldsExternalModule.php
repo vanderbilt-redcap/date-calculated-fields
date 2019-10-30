@@ -17,6 +17,17 @@ class DateCalculatedFieldsExternalModule extends AbstractExternalModule
 {
 	function redcap_data_entry_form($project_id, $record, $instrument, $event_id, $group_id = NULL, $repeat_instance = 1) {
 		global $Proj;
+		/*$testString = "[field] - 5+2 - [field2]";
+		$parsed = $this->parseLogicString($testString);
+
+		$recordData = \Records::getData($project_id,'array',array($record),array(),array(),array($group_id));
+		$metaData = $Proj->metadata;
+		echo "<pre>";
+		print_r($recordData);
+		echo "</pre>";
+		echo "<pre>";
+		print_r($metaData);
+		echo "</pre>";*/
 		echo $this->createCalcuationJava($Proj,$instrument,$record,$event_id,$repeat_instance);
 	}
 
@@ -117,7 +128,7 @@ class DateCalculatedFieldsExternalModule extends AbstractExternalModule
 										$endOffset = (int)$this->getProjectSetting('end-days-add')[$index][$destIndex];
 									}
 									else {
-										$endOffset = (int)$eventInfo['offset_min'];
+										$endOffset = (int)$eventInfo['offset_max'];
 									}
 									# Add the base amount of days to offset for the event
 									$endDate = date_add($postDate, date_interval_create_from_date_string((int)$daysOffset . ' days'));
@@ -156,6 +167,98 @@ class DateCalculatedFieldsExternalModule extends AbstractExternalModule
 		}
 		return null;
 	}
+
+    /*
+     * Generate the necessary Javascript code to get on-form data piping working.
+     * @param $string String with mathematical logic.
+     * @return Array with
+     *  Index 0: Array of field names wrapped in brackets
+     *  Index 1: Array of field names
+     *  Index 2: Array of mathematical operators
+     *  Index 3: Array of values to be processed by mathematical operators
+     */
+    function parseLogicString($string) {
+        preg_match_all("/\[(.*?)\]/", $string, $matchRegEx);
+        preg_match_all('/[+*\/-]/', $string, $matches);
+        $stringsToReplace = $matchRegEx[0];
+        $fieldNamesReplace = $matchRegEx[1];
+
+        if (count($fieldNamesReplace[0]) > 1 || count($stringsToReplace[0]) > 1) return array();
+
+        $daysAdd = array();
+        if (isset($matches[0]) && !empty($matches[0])) {
+            $lastPosition = 0;
+            foreach ($matches[0] as $index => $operator) {
+                $thisPosition = strpos($string, $matches[0][$index],$lastPosition);
+                if ($index == 0) {
+                    $daysAdd[$index] = trim(substr($string,0,$thisPosition));
+                } else {
+                    $daysAdd[$index] = trim(substr($string,$lastPosition + 1,($thisPosition - ($lastPosition + 1))));
+                }
+                $lastPosition = $thisPosition;
+            }
+            if ($lastPosition != "") {
+                $daysAdd[] = trim(substr($string,$lastPosition + 1));
+            }
+        }
+        else {
+            $daysAdd[] = $string;
+        }
+
+        return array($stringsToReplace,$fieldNamesReplace,$matches[0],$daysAdd);
+    }
+
+    /*
+     * Generate the necessary Javascript code to get on-form data piping working.
+     * @param $interval Initial integer.
+     * @param $operator Mathematical operator to use for operation.
+     * @param $operatee Second integer to be interacted on initial integer by operator
+     * @return Integer result of mathematical operation.
+     */
+    function processOperator($interval, $operator, $operatee) {
+        if (!is_numeric($interval) || !is_numeric($operatee)) return $interval;
+        switch ($operator) {
+            case "+":
+                return intval($interval) + intval($operatee);
+                break;
+            case "-":
+                return intval($interval) + intval($operatee);
+                break;
+            case "*":
+                return intval($interval) * intval($operatee);
+                break;
+            case "/":
+                return intval($interval) / intval($operatee);
+                break;
+        }
+        return $interval;
+    }
+
+    function getNumberFromLogicString($parseArray,$recordData,$metaData,$record,$event_id,$instance=1) {
+        $total = 0;
+
+        $bracketFieldList = $parseArray[0];
+        $fieldNameList = $parseArray[1];
+        $operators = $parseArray[2];
+        $numbers = $parseArray[3];
+        foreach ($numbers as $index => $number) {
+            if (in_array($number,$bracketFieldList)) {
+                $fieldName = $fieldNameList[array_keys($bracketFieldList,$number)[0]];
+                if (isset($recordData[$record][$event_id][$fieldName]) && is_numeric($recordData[$record][$event_id][$fieldName])) {
+
+                }
+                elseif (isset($recordData[$record]['repeat_instances'][$event_id][$metaData[$fieldName]['form_name']][$instance][$fieldName]) && is_numeric($recordData[$record]['repeat_instances'][$event_id][$metaData[$fieldName]['form_name']][$instance][$fieldName])) {
+
+                }
+                else {
+                    $total += 0;
+                }
+            }
+            elseif (is_numeric($number)) {
+
+            }
+        }
+    }
 
 	/*
 	 * Generate the necessary Javascript code to get on-form data piping working.
@@ -250,7 +353,7 @@ class DateCalculatedFieldsExternalModule extends AbstractExternalModule
                                 if ($this->getProjectSetting('end-days-add')[$index][$destIndex] != "" && is_numeric($this->getProjectSetting('end-days-add')[$index][$destIndex])) {
                                     $endOffset = (int)$this->getProjectSetting('end-days-add')[$index][$destIndex];
                                 } else {
-                                    $endOffset = (int)$eventInfo['offset_min'];
+                                    $endOffset = (int)$eventInfo['offset_max'];
                                 }
                                 $javaString .= "var myEndDate = new Date(date.getTime()-userTimezoneOffset+(" . $daysOffset . "*86400000)+(" . $endOffset . "*86400000));
 									$('input[name=" . $this->getProjectSetting('event-end-date')[$index][$destIndex] . "]').val(";
@@ -310,6 +413,7 @@ class DateCalculatedFieldsExternalModule extends AbstractExternalModule
                             } else {
                                 $startOffset = '-' . (int)$eventInfo['offset_min'];
                             }
+
                             $javaString .= "var myInstanceStartDate = new Date(instancedate.getTime()-instanceuserTimezoneOffset+(" . $daysOffset . "*86400000)+(" . $startOffset . "*86400000));
 									$('input[name=" . $this->getProjectSetting('event-start-date')[$index][$destIndex] . "]').val(";
                             $javaString .= $this->getDateFormat($project->metadata[$this->getProjectSetting('event-start-date')[$index][$destIndex]]['element_validation_type'], 'myInstanceStartDate', 'javascript');
@@ -326,7 +430,7 @@ class DateCalculatedFieldsExternalModule extends AbstractExternalModule
                             if ($this->getProjectSetting('end-days-add')[$index][$destIndex] != "" && is_numeric($this->getProjectSetting('end-days-add')[$index][$destIndex])) {
                                 $endOffset = (int)$this->getProjectSetting('end-days-add')[$index][$destIndex];
                             } else {
-                                $endOffset = (int)$eventInfo['offset_min'];
+                                $endOffset = (int)$eventInfo['offset_max'];
                             }
                             $javaString .= "var myInstanceEndDate = new Date(instancedate.getTime()-instanceuserTimezoneOffset+(" . $daysOffset . "*86400000)+(" . $endOffset . "*86400000));
 									$('input[name=" . $this->getProjectSetting('event-end-date')[$index][$destIndex] . "]').val(";
