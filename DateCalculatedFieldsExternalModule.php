@@ -11,12 +11,31 @@ namespace Vanderbilt\DateCalculatedFieldsExternalModule;
 use DateTime;
 use ExternalModules\AbstractExternalModule;
 use ExternalModules\ExternalModules;
+use mysql_xdevapi\Exception;
 
 
 class DateCalculatedFieldsExternalModule extends AbstractExternalModule
 {
+    const daysPerMonth = array(
+        1=>31,
+        2=>28,
+        3=>31,
+        4=>30,
+        5=>31,
+        6=>30,
+        7=>31,
+        8=>31,
+        9=>30,
+        10=>31,
+        11=>30,
+        12=>31
+    );
+
 	function redcap_data_entry_form($project_id, $record, $instrument, $event_id, $group_id = NULL, $repeat_instance = 1) {
 		global $Proj;
+        $postDate = new \DateTime(db_real_escape_string("2018-01-30"));
+        $newDate = date_add($postDate, date_interval_create_from_date_string( '+1 months'));
+        $postDate->modify('+1 month');
 		/*$testString = "[field] - 5+2 - [field2]";
 		$parsed = $this->parseLogicString($testString);
 
@@ -42,6 +61,7 @@ class DateCalculatedFieldsExternalModule extends AbstractExternalModule
 		$sourceFields = $this->getProjectSetting('source');
 		$destinationFields = $this->getProjectSetting('destination');
 		$daysAdd = $this->getProjectSetting('days-difference');
+		$daysOrMonths = $this->getProjectSetting('days-or-months');
 		$fieldsOnForm = $Proj->forms[$instrument]['fields'];
 
 		foreach ($sourceFields as $index => $fieldName) {
@@ -71,6 +91,7 @@ class DateCalculatedFieldsExternalModule extends AbstractExternalModule
 								$currentEvent = true;
 							}
 							$postDate = new \DateTime(db_real_escape_string($_POST[$fieldName]));
+							$componentDate = array('year'=>$postDate->format("Y"),'month'=>$postDate->format("m"),'day'=>$postDate->format('d'),'hour'=>$postDate->format('H'),'minute'=>$postDate->format('i'),'second'=>$postDate->format('s'));
 
 							if (!in_array($eventToPipe,$eventsWithForm)) continue;
 							if (!in_array($eventToPipe,$eventPipeList)) continue;
@@ -91,10 +112,45 @@ class DateCalculatedFieldsExternalModule extends AbstractExternalModule
 								$fieldsToSave[$record][$eventToPipe][$destinationField] = $newDate->format($this->getDateFormat($Proj->metadata[$destinationField]['element_validation_type'],'php'));*/
 							}
 
-							//if ($currentEvent) {
-								$newDate = date_add($postDate, date_interval_create_from_date_string($daysOffset . ' days'));
-								$fieldsToSave[$record][$eventToPipe][$destinationField] = $newDate->format($this->dateSaveFormat($Proj->metadata[$destinationField]['element_validation_type']));
-							//}
+							/*if ($daysOrMonths == "months") {
+							    $newMonth = $componentDate['month'] + $daysOffset;
+							    $newYear = $componentDate['year'];
+							    $newDay = $componentDate['day'];
+							    while ($newMonth > 12) {
+							        $newMonth -= 12;
+							        $newYear += 1;
+                                }
+                                if ($newMonth == 2) {
+                                    if ($newYear % 4 == 0) {
+                                        if ($newDay > 29) {
+                                            $newDay = 29;
+                                        }
+                                    }
+                                    else {
+                                        if ($newDay > 28) {
+                                            $newDay = 28;
+                                        }
+                                    }
+                                }
+                                elseif ($newDay > self::daysPerMonth[$newMonth]) {
+                                    $newDay = self::daysPerMonth[$newMonth];
+                                }
+                                $newDate = new \DateTime($newYear."-".$newMonth."-".$newDay." ".$componentDate['hour'].":".$componentDate['minute'].":".$componentDate['second']);
+                                $fieldsToSave[$record][$eventToPipe][$destinationField] = $newDate->format($this->dateSaveFormat($Proj->metadata[$destinationField]['element_validation_type']));
+                            }
+							else {
+                                //if ($currentEvent) {
+                                    $newDate = date_add($postDate, date_interval_create_from_date_string($daysOffset . ' days'));
+                                    $fieldsToSave[$record][$eventToPipe][$destinationField] = $newDate->format($this->dateSaveFormat($Proj->metadata[$destinationField]['element_validation_type']));
+                                //}
+                            }*/
+							$newDate = $this->generateNewDate($postDate,$daysOrMonths,$daysOffset,$componentDate);
+							try {
+                                $fieldsToSave[$record][$eventToPipe][$destinationField] = $newDate->format($this->dateSaveFormat($Proj->metadata[$destinationField]['element_validation_type']));
+                            }
+                            catch (Exception $e) {
+							    throw new Exception("An invalid date was returned, giving the following error: ".$e->getMessage());
+                            }
 
 							# Make sure whether we need to pipe into a "Start Date" date range field
 							if ($this->getProjectSetting('event-start-date')[$index][$destIndex] != "") {
@@ -111,10 +167,17 @@ class DateCalculatedFieldsExternalModule extends AbstractExternalModule
 										$startOffset = '-'.(int)$eventInfo['offset_min'];
 									}
 									# Add the base amount of days to offset for the event
-									$startDate = date_add($postDate, date_interval_create_from_date_string((int)$daysOffset . ' days'));
+									//$startDate = date_add($postDate, date_interval_create_from_date_string((int)$daysOffset . ' days'));
 									# Add the amount of days necessary from the start offset
-									$startDate = date_add($startDate, date_interval_create_from_date_string($startOffset . ' days'));
-									$fieldsToSave[$record][$eventToPipe][$this->getProjectSetting('event-start-date')[$index][$destIndex]] = $startDate->format($this->dateSaveFormat($Proj->metadata[$this->getProjectSetting('event-start-date')[$index][$destIndex]]['element_validation_type']));
+									//$startDate = date_add($startDate, date_interval_create_from_date_string($startOffset . ' days'));
+                                    $combinedOffset = (int)$daysOffset + (int)$startOffset;
+									$startDate = $this->generateNewDate($postDate,$daysOrMonths,$combinedOffset,$componentDate);
+									try {
+                                        $fieldsToSave[$record][$eventToPipe][$this->getProjectSetting('event-start-date')[$index][$destIndex]] = $startDate->format($this->dateSaveFormat($Proj->metadata[$this->getProjectSetting('event-start-date')[$index][$destIndex]]['element_validation_type']));
+                                    }
+                                    catch (Exception $e) {
+                                        throw new Exception("An invalid date was returned, giving the following error: ".$e->getMessage());
+                                    }
 								}
 							}
 							# Make sure whether we need to pipe into a "End Date" date range field
@@ -131,10 +194,17 @@ class DateCalculatedFieldsExternalModule extends AbstractExternalModule
 										$endOffset = (int)$eventInfo['offset_max'];
 									}
 									# Add the base amount of days to offset for the event
-									$endDate = date_add($postDate, date_interval_create_from_date_string((int)$daysOffset . ' days'));
+									//$endDate = date_add($postDate, date_interval_create_from_date_string((int)$daysOffset . ' days'));
 									# Add the amount of days necessary from the start offset
-									$endDate = date_add($endDate, date_interval_create_from_date_string((int)$endOffset . ' days'));
-									$fieldsToSave[$record][$eventToPipe][$this->getProjectSetting('event-end-date')[$index][$destIndex]] = $endDate->format($this->dateSaveFormat($Proj->metadata[$this->getProjectSetting('event-end-date')[$index][$destIndex]]['element_validation_type']));
+									//$endDate = date_add($endDate, date_interval_create_from_date_string((int)$endOffset . ' days'));
+                                    $combinedOffset = (int)$daysOffset + (int)$endOffset;
+									$endDate = $this->generateNewDate($postDate,$daysOrMonths,$combinedOffset,$componentDate);
+									try {
+                                        $fieldsToSave[$record][$eventToPipe][$this->getProjectSetting('event-end-date')[$index][$destIndex]] = $endDate->format($this->dateSaveFormat($Proj->metadata[$this->getProjectSetting('event-end-date')[$index][$destIndex]]['element_validation_type']));
+                                    }
+                                    catch (Exception $e) {
+                                        throw new Exception("An invalid date was returned, giving the following error: ".$e->getMessage());
+                                    }
 								}
 							}
 							/*if (!empty($fieldsToSave)) {
@@ -145,8 +215,9 @@ class DateCalculatedFieldsExternalModule extends AbstractExternalModule
 					# If we're not piping to other events, make sure we pipe to any fields on the same event that aren't on the current data entry form
 					elseif (!in_array($destinationField,array_keys($fieldsOnForm))) {
 						$postDate = new \DateTime(db_real_escape_string($_POST[$fieldName]));
-						$newDate = date_add($postDate,date_interval_create_from_date_string($daysAdd[$index][$destIndex].' days'));
-
+                        $componentDate = array('year'=>$postDate->format("Y"),'month'=>$postDate->format("m"),'day'=>$postDate->format('d'),'hour'=>$postDate->format('H'),'minute'=>$postDate->format('i'),'second'=>$postDate->format('s'));
+						//$newDate = date_add($postDate,date_interval_create_from_date_string($daysAdd[$index][$destIndex].' days'));
+                        $newDate = $this->generateNewDate($postDate,$daysOrMonths,$daysAdd[$index][$destIndex],$componentDate);
 						$fieldsToSave[$record][$event_id][$destinationField] = $newDate->format($this->dateSaveFormat($Proj->metadata[$destinationField]['element_validation_type']));
 						/*if (!empty($fieldsToSave)) {
 							$output = \Records::saveData($project_id,'array',$fieldsToSave,$overwriteText);
@@ -156,6 +227,14 @@ class DateCalculatedFieldsExternalModule extends AbstractExternalModule
 			}
 			if (!empty($fieldsToSave)) {
 				$output = \Records::saveData($project_id,'array',$fieldsToSave,$overwriteText);
+				if (!empty($output['errors'])) {
+                    $errorString = stripslashes(json_encode($output['errors'], JSON_PRETTY_PRINT));
+                    $errorString = str_replace('""', '"', $errorString);
+
+                    $message = "The " . $this->getModuleName() . " module could not save updated date fields because of the following error(s):\n\n$errorString";
+                    error_log($message);
+                    throw new Expection($message);
+                }
 			}
 		}
 		//exit;
@@ -168,6 +247,40 @@ class DateCalculatedFieldsExternalModule extends AbstractExternalModule
 		return null;
 	}
 
+	function generateNewDate($postDate,$daysOrMonths,$daysOffset,$componentDate) {
+	    $newDate = "";
+        if ($daysOrMonths == "months") {
+            $newMonth = $componentDate['month'] + $daysOffset;
+            $newYear = $componentDate['year'];
+            $newDay = $componentDate['day'];
+            while ($newMonth > 12) {
+                $newMonth -= 12;
+                $newYear += 1;
+            }
+            if ($newMonth == 2) {
+                if ($newYear % 4 == 0) {
+                    if ($newDay > 29) {
+                        $newDay = 29;
+                    }
+                }
+                else {
+                    if ($newDay > 28) {
+                        $newDay = 28;
+                    }
+                }
+            }
+            elseif ($newDay > self::daysPerMonth[$newMonth]) {
+                $newDay = self::daysPerMonth[$newMonth];
+            }
+            $newDate = new \DateTime($newYear."-".$newMonth."-".$newDay." ".$componentDate['hour'].":".$componentDate['minute'].":".$componentDate['second']);
+        }
+        else {
+            //if ($currentEvent) {
+            $newDate = date_add($postDate, date_interval_create_from_date_string($daysOffset . ' days'));
+            //}
+        }
+        return $newDate;
+    }
     /*
      * Generate the necessary Javascript code to get on-form data piping working.
      * @param $string String with mathematical logic.
@@ -273,6 +386,8 @@ class DateCalculatedFieldsExternalModule extends AbstractExternalModule
 		$sourceFields = $this->getProjectSetting('source');
 		$destinationFields = $this->getProjectSetting('destination');
 		$daysAdd = $this->getProjectSetting('days-difference');
+        $daysOrMonthArray = $this->getProjectSetting('days-or-months');
+
 		#Get the list of fields that exist on the current form
 		$fieldsOnForm = $project->forms[$instrument]['fields'];
 		$eventInfo = $project->eventInfo[$event_id];
@@ -307,6 +422,7 @@ class DateCalculatedFieldsExternalModule extends AbstractExternalModule
                     if (in_array($destinationField, array_keys($fieldsOnForm))) {
                         if ($this->getProjectSetting('event-source')[$index][$destIndex] != "" && $event_id != $this->getProjectSetting('event-source')[$index][$destIndex]) continue;
                         $eventPipeList = $this->getProjectSetting('event-pipe')[$index][$destIndex];
+                        $daysOrMonths = $daysOrMonthArray[$index][$destIndex];
                         if ($this->getProjectSetting('pipe-to-event')[$index][$destIndex] == "1" && !in_array($event_id, $eventPipeList)) continue;
                         $daysOffset = "";
                         # If we don't specify the number of days to add per event in the project, use the project's event days offset setting
@@ -320,8 +436,13 @@ class DateCalculatedFieldsExternalModule extends AbstractExternalModule
                             /*$newDate = date_add($postDate,date_interval_create_from_date_string($eventInfo['day_offset'].' days'));
                             $fieldsToSave[$record][$eventToPipe][$destinationField] = $newDate->format($this->getDateFormat($Proj->metadata[$destinationField]['element_validation_type'],'php'));*/
                         }
-                        $javaString .= "var mySubDate = new Date(date.getTime()-userTimezoneOffset+(" . $daysOffset . "*86400000));
-									$('input[name=$destinationField]').val(";
+                        if ($daysOrMonths == "months") {
+                            $javaString .= "var mySubDate = addMonthsToDate(date,$daysOffset);console.log(mySubDate.getUTCFullYear());";
+                        }
+                        else {
+                            $javaString .= "var mySubDate = new Date(date.getTime()-userTimezoneOffset+(" . $daysOffset . "*86400000));console.log(mySubDate);";
+                        }
+                        $javaString .= "$('input[name=$destinationField]').val(";
                         $javaString .= $this->getDateFormat($project->metadata[$destinationField]['element_validation_type'], 'mySubDate', 'javascript');
                         //mySubDate$destIndex.getUTCFullYear()+'-'+addZ(mySubDate$destIndex.getUTCMonth()+1)+'-'+addZ(mySubDate$destIndex.getUTCDate())
                         $javaString .= ");";
@@ -337,8 +458,13 @@ class DateCalculatedFieldsExternalModule extends AbstractExternalModule
                                 } else {
                                     $startOffset = '-' . (int)$eventInfo['offset_min'];
                                 }
-                                $javaString .= "var myStartDate = new Date(date.getTime()-userTimezoneOffset+(" . $daysOffset . "*86400000)+(" . $startOffset . "*86400000));
-									$('input[name=" . $this->getProjectSetting('event-start-date')[$index][$destIndex] . "]').val(";
+                                if ($daysOrMonths == "months") {
+                                    $javaString .= "var myStartDate = addMonthsToDate(date,".((int)$daysOffset + (int)$startOffset).");";
+                                }
+                                else {
+                                    $javaString .= "var myStartDate = new Date(date.getTime()-userTimezoneOffset+(" . $daysOffset . "*86400000)+(" . $startOffset . "*86400000));";
+                                }
+                                $javaString .= "$('input[name=" . $this->getProjectSetting('event-start-date')[$index][$destIndex] . "]').val(";
                                 $javaString .= $this->getDateFormat($project->metadata[$this->getProjectSetting('event-start-date')[$index][$destIndex]]['element_validation_type'], 'myStartDate', 'javascript');
                                 //mySubDate$destIndex.getUTCFullYear()+'-'+addZ(mySubDate$destIndex.getUTCMonth()+1)+'-'+addZ(mySubDate$destIndex.getUTCDate())
                                 $javaString .= ");";
@@ -355,8 +481,13 @@ class DateCalculatedFieldsExternalModule extends AbstractExternalModule
                                 } else {
                                     $endOffset = (int)$eventInfo['offset_max'];
                                 }
-                                $javaString .= "var myEndDate = new Date(date.getTime()-userTimezoneOffset+(" . $daysOffset . "*86400000)+(" . $endOffset . "*86400000));
-									$('input[name=" . $this->getProjectSetting('event-end-date')[$index][$destIndex] . "]').val(";
+                                if ($daysOrMonths == "months") {
+                                    $javaString .= "var myEndDate = addMonthsToDate(date,".((int)$daysOffset + (int)$endOffset).");";
+                                }
+                                else {
+                                    $javaString .= "var myEndDate = new Date(date.getTime()-userTimezoneOffset+(" . $daysOffset . "*86400000)+(" . $endOffset . "*86400000));";
+                                }
+                                $javaString .= "$('input[name=" . $this->getProjectSetting('event-end-date')[$index][$destIndex] . "]').val(";
                                 $javaString .= $this->getDateFormat($project->metadata[$this->getProjectSetting('event-end-date')[$index][$destIndex]]['element_validation_type'], 'myEndDate', 'javascript');
                                 //mySubDate$destIndex.getUTCFullYear()+'-'+addZ(mySubDate$destIndex.getUTCMonth()+1)+'-'+addZ(mySubDate$destIndex.getUTCDate())
                                 $javaString .= ");";
@@ -385,6 +516,7 @@ class DateCalculatedFieldsExternalModule extends AbstractExternalModule
                 if ($this->getProjectSetting('pipe-to-event')[$index][$destIndex] == "2" && ($recordData[$record_id][$event_id][$fieldName] == "" && $recordData[$record_id]['repeat_instances'][$event_id][$sourceFieldForm][intval($instance) - 1][$fieldName] == "")) continue;
                 if (in_array($destinationField, array_keys($fieldsOnForm))) {
                     $daysOffset = "";
+                    $daysOrMonths = $daysOrMonthArray[$index][$destIndex];
                     # If we don't specify the number of days to add per event in the project, use the project's event days offset setting
                     if ($daysAdd[$index][$destIndex] != "") {
                         //$daysOffset = $daysAdd[$index][$destIndex] * (($eventIndex - $currentEventIndex)+1);
@@ -396,8 +528,13 @@ class DateCalculatedFieldsExternalModule extends AbstractExternalModule
                         /*$newDate = date_add($postDate,date_interval_create_from_date_string($eventInfo['day_offset'].' days'));
                         $fieldsToSave[$record][$eventToPipe][$destinationField] = $newDate->format($this->getDateFormat($Proj->metadata[$destinationField]['element_validation_type'],'php'));*/
                     }
-                    $javaString .= "var myInstanceSubDate = new Date(instancedate.getTime()-instanceuserTimezoneOffset+(" . $daysOffset . "*86400000));
-									$('input[name=$destinationField]').val(";
+                    if ($daysOrMonths == "months") {
+                        $javaString .= "var myInstanceSubDate = addMonthsToDate(instancedate,$daysOffset);";
+                    }
+                    else {
+                        $javaString .= "var myInstanceSubDate = new Date(instancedate.getTime()-instanceuserTimezoneOffset+(" . $daysOffset . "*86400000));";
+                    }
+                    $javaString .= "$('input[name=$destinationField]').val(";
                     $javaString .= $this->getDateFormat($project->metadata[$destinationField]['element_validation_type'], 'myInstanceSubDate', 'javascript');
                     //mySubDate$destIndex.getUTCFullYear()+'-'+addZ(mySubDate$destIndex.getUTCMonth()+1)+'-'+addZ(mySubDate$destIndex.getUTCDate())
                     $javaString .= ");";
@@ -414,8 +551,13 @@ class DateCalculatedFieldsExternalModule extends AbstractExternalModule
                                 $startOffset = '-' . (int)$eventInfo['offset_min'];
                             }
 
-                            $javaString .= "var myInstanceStartDate = new Date(instancedate.getTime()-instanceuserTimezoneOffset+(" . $daysOffset . "*86400000)+(" . $startOffset . "*86400000));
-									$('input[name=" . $this->getProjectSetting('event-start-date')[$index][$destIndex] . "]').val(";
+                            if ($daysOrMonths == "months") {
+                                $javaString .= "var myInstanceStartDate = addMonthsToDate(instancedate,".((int)$daysOffset + (int)$startOffset).");";
+                            }
+                            else {
+                                $javaString .= "var myInstanceStartDate = new Date(instancedate.getTime()-instanceuserTimezoneOffset+(" . $daysOffset . "*86400000)+(" . $startOffset . "*86400000));";
+                            }
+                            $javaString .= "$('input[name=" . $this->getProjectSetting('event-start-date')[$index][$destIndex] . "]').val(";
                             $javaString .= $this->getDateFormat($project->metadata[$this->getProjectSetting('event-start-date')[$index][$destIndex]]['element_validation_type'], 'myInstanceStartDate', 'javascript');
                             //mySubDate$destIndex.getUTCFullYear()+'-'+addZ(mySubDate$destIndex.getUTCMonth()+1)+'-'+addZ(mySubDate$destIndex.getUTCDate())
                             $javaString .= ");";
@@ -432,8 +574,13 @@ class DateCalculatedFieldsExternalModule extends AbstractExternalModule
                             } else {
                                 $endOffset = (int)$eventInfo['offset_max'];
                             }
-                            $javaString .= "var myInstanceEndDate = new Date(instancedate.getTime()-instanceuserTimezoneOffset+(" . $daysOffset . "*86400000)+(" . $endOffset . "*86400000));
-									$('input[name=" . $this->getProjectSetting('event-end-date')[$index][$destIndex] . "]').val(";
+                            if ($daysOrMonths == "months") {
+                                $javaString .= "var myInstanceEndDate = addMonthsToDate(instanceDate,".((int)$daysOffset + (int)$endOffset).");";
+                            }
+                            else {
+                                $javaString .= "var myInstanceEndDate = new Date(instancedate.getTime()-instanceuserTimezoneOffset+(" . $daysOffset . "*86400000)+(" . $endOffset . "*86400000));";
+                            }
+                            $javaString .= "$('input[name=" . $this->getProjectSetting('event-end-date')[$index][$destIndex] . "]').val(";
                             $javaString .= $this->getDateFormat($project->metadata[$this->getProjectSetting('event-end-date')[$index][$destIndex]]['element_validation_type'], 'myInstanceEndDate', 'javascript');
                             //mySubDate$destIndex.getUTCFullYear()+'-'+addZ(mySubDate$destIndex.getUTCMonth()+1)+'-'+addZ(mySubDate$destIndex.getUTCDate())
                             $javaString .= ");";
@@ -441,6 +588,35 @@ class DateCalculatedFieldsExternalModule extends AbstractExternalModule
                     }
                 }
             }
+        }
+		if ($daysOrMonths == "months") {
+            $javaString .= "function addMonthsToDate(postDate,monthsOffset) {
+                var currentYear = postDate.getFullYear();
+                var currentMonth = postDate.getMonth();
+                console.log('Current: '+currentMonth);
+                var currentDate = postDate.getDate();
+                var currentHour = postDate.getHours();
+                var currentMinute = postDate.getMinutes();
+                var currentSecond = postDate.getSeconds();
+                var newMonth = currentMonth + monthsOffset;
+
+                while (newMonth > 11) {
+                    currentYear += 1;
+                    newMonth -= 12;
+                }
+                if (newMonth == 1 && currentDate > 29) {
+                    if (currentYear % 4 == 0) {
+                        currentDate = 29;
+                    }
+                    else {
+                        currentDate = 28;
+                    }
+                }
+                else if ((newMonth == 0 || newMonth == 2 || newMonth == 4 || newMonth == 6 || newMonth == 7 || newMonth == 9 || newMonth == 11) && currentDate > 30) {
+                    currentDate = 30;
+                }
+                return new Date(currentYear,newMonth,currentDate,currentHour,currentMinute,currentSecond);
+		    }";
         }
         $javaString .= "function addZ(n) {
 					  return n < 10 ? '0' + n : '' + n;

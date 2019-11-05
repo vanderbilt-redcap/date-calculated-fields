@@ -56,12 +56,26 @@
               "required": true
             },
             {
+              "key": "days-or-months",
+              "name": "Adjust dates by days or months (Default: Days)",
+              "type": "dropdown",
+              "choices": [
+                {
+                  "value": "days",
+                  "name": "Days"
+                },
+                {
+                  "value": "months",
+                  "name": "Months"
+                }
+              ]
+            },
+            {
               "key": "days-difference",
-              "name": "Days To Add/Subtract from Source Date (to Subtract, use a -), Leave Blank to Use Event 'Days Offset' Settings",
+              "name": "Value To Add/Subtract from Source Date (to Subtract, use a -), Leave Blank to Use Event 'Days Offset' Settings",
               "type": "text"
             },
             {
-
               "key": "pipe-to-event",
               "name": "Pipe Dates to Other Events",
               "type": "dropdown",
