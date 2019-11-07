@@ -16,21 +16,6 @@ use mysql_xdevapi\Exception;
 
 class DateCalculatedFieldsExternalModule extends AbstractExternalModule
 {
-    const daysPerMonth = array(
-        1=>31,
-        2=>28,
-        3=>31,
-        4=>30,
-        5=>31,
-        6=>30,
-        7=>31,
-        8=>31,
-        9=>30,
-        10=>31,
-        11=>30,
-        12=>31
-    );
-
 	function redcap_data_entry_form($project_id, $record, $instrument, $event_id, $group_id = NULL, $repeat_instance = 1) {
 		global $Proj;
         $postDate = new \DateTime(db_real_escape_string("2018-01-30"));
@@ -248,6 +233,20 @@ class DateCalculatedFieldsExternalModule extends AbstractExternalModule
 	}
 
 	function generateNewDate($postDate,$daysOrMonths,$daysOffset,$componentDate) {
+        $daysPerMonth = array(
+            1=>31,
+            2=>28,
+            3=>31,
+            4=>30,
+            5=>31,
+            6=>30,
+            7=>31,
+            8=>31,
+            9=>30,
+            10=>31,
+            11=>30,
+            12=>31
+        );
 	    $newDate = "";
         if ($daysOrMonths == "months") {
             $newMonth = $componentDate['month'] + $daysOffset;
@@ -269,8 +268,8 @@ class DateCalculatedFieldsExternalModule extends AbstractExternalModule
                     }
                 }
             }
-            elseif ($newDay > self::daysPerMonth[$newMonth]) {
-                $newDay = self::daysPerMonth[$newMonth];
+            elseif ($newDay > $daysPerMonth[$newMonth]) {
+                $newDay = $daysPerMonth[$newMonth];
             }
             $newDate = new \DateTime($newYear."-".$newMonth."-".$newDay." ".$componentDate['hour'].":".$componentDate['minute'].":".$componentDate['second']);
         }
