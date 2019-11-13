@@ -218,7 +218,7 @@ class DateCalculatedFieldsExternalModule extends AbstractExternalModule
 
                     $message = "The " . $this->getModuleName() . " module could not save updated date fields because of the following error(s):\n\n$errorString";
                     error_log($message);
-                    throw new Expection($message);
+                    throw new Exception($message);
                 }
 			}
 		}
@@ -615,6 +615,16 @@ class DateCalculatedFieldsExternalModule extends AbstractExternalModule
                     currentDate = 30;
                 }
                 return new Date(currentYear,newMonth,currentDate,currentHour,currentMinute,currentSecond);
+		    }
+		    function addDaysToMonth(postDate,daysOffset) {
+		        var currentYear = postDate.getFullYear();
+                var currentMonth = postDate.getMonth();
+                console.log('Current: '+currentMonth);
+                var currentDate = postDate.getDate();
+                var currentHour = postDate.getHours();
+                var currentMinute = postDate.getMinutes();
+                var currentSecond = postDate.getSeconds();
+                var newDate = currentDate + daysOffset;
 		    }";
         }
         $javaString .= "function addZ(n) {
