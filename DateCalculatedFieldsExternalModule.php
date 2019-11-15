@@ -11,16 +11,11 @@ namespace Vanderbilt\DateCalculatedFieldsExternalModule;
 use DateTime;
 use ExternalModules\AbstractExternalModule;
 use ExternalModules\ExternalModules;
-use mysql_xdevapi\Exception;
-
 
 class DateCalculatedFieldsExternalModule extends AbstractExternalModule
 {
 	function redcap_data_entry_form($project_id, $record, $instrument, $event_id, $group_id = NULL, $repeat_instance = 1) {
 		global $Proj;
-        $postDate = new \DateTime(db_real_escape_string("2018-01-30"));
-        $newDate = date_add($postDate, date_interval_create_from_date_string( '+1 months'));
-        $postDate->modify('+1 month');
 		/*$testString = "[field] - 5+2 - [field2]";
 		$parsed = $this->parseLogicString($testString);
 
@@ -133,8 +128,8 @@ class DateCalculatedFieldsExternalModule extends AbstractExternalModule
 							try {
                                 $fieldsToSave[$record][$eventToPipe][$destinationField] = $newDate->format($this->dateSaveFormat($Proj->metadata[$destinationField]['element_validation_type']));
                             }
-                            catch (Exception $e) {
-							    throw new Exception("An invalid date was returned, giving the following error: ".$e->getMessage());
+                            catch (\Exception $e) {
+							    throw new \Exception("An invalid date was returned, giving the following error: ".$e->getMessage());
                             }
 
 							# Make sure whether we need to pipe into a "Start Date" date range field
@@ -160,8 +155,8 @@ class DateCalculatedFieldsExternalModule extends AbstractExternalModule
 									try {
                                         $fieldsToSave[$record][$eventToPipe][$this->getProjectSetting('event-start-date')[$index][$destIndex]] = $startDate->format($this->dateSaveFormat($Proj->metadata[$this->getProjectSetting('event-start-date')[$index][$destIndex]]['element_validation_type']));
                                     }
-                                    catch (Exception $e) {
-                                        throw new Exception("An invalid date was returned, giving the following error: ".$e->getMessage());
+                                    catch (\Exception $e) {
+                                        throw new \Exception("An invalid date was returned, giving the following error: ".$e->getMessage());
                                     }
 								}
 							}
@@ -187,8 +182,8 @@ class DateCalculatedFieldsExternalModule extends AbstractExternalModule
 									try {
                                         $fieldsToSave[$record][$eventToPipe][$this->getProjectSetting('event-end-date')[$index][$destIndex]] = $endDate->format($this->dateSaveFormat($Proj->metadata[$this->getProjectSetting('event-end-date')[$index][$destIndex]]['element_validation_type']));
                                     }
-                                    catch (Exception $e) {
-                                        throw new Exception("An invalid date was returned, giving the following error: ".$e->getMessage());
+                                    catch (\Exception $e) {
+                                        throw new \Exception("An invalid date was returned, giving the following error: ".$e->getMessage());
                                     }
 								}
 							}
@@ -218,7 +213,7 @@ class DateCalculatedFieldsExternalModule extends AbstractExternalModule
 
                     $message = "The " . $this->getModuleName() . " module could not save updated date fields because of the following error(s):\n\n$errorString";
                     error_log($message);
-                    throw new Exception($message);
+                    throw new \Exception($message);
                 }
 			}
 		}
@@ -301,7 +296,7 @@ class DateCalculatedFieldsExternalModule extends AbstractExternalModule
         if (isset($matches[0]) && !empty($matches[0])) {
             $lastPosition = 0;
             foreach ($matches[0] as $index => $operator) {
-                $thisPosition = strpos($string, $matches[0][$index],$lastPosition);
+                $thisPosition = strpos($string, $matches[0][$index],$lastPosition+1);
                 if ($index == 0) {
                     $daysAdd[$index] = trim(substr($string,0,$thisPosition));
                 } else {
