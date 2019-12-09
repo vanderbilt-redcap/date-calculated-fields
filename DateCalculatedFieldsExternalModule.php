@@ -41,7 +41,7 @@ class DateCalculatedFieldsExternalModule extends AbstractExternalModule
 		$sourceFields = $this->getProjectSetting('source');
 		$destinationFields = $this->getProjectSetting('destination');
 		$daysAdd = $this->getProjectSetting('days-difference');
-		$daysOrMonths = $this->getProjectSetting('days-or-months');
+		$daysOrMonthsArray = $this->getProjectSetting('days-or-months');
 		$fieldsOnForm = $Proj->forms[$instrument]['fields'];
 
 		foreach ($sourceFields as $index => $fieldName) {
@@ -51,6 +51,7 @@ class DateCalculatedFieldsExternalModule extends AbstractExternalModule
 			# Make sure that the field that we're piping was submitted on the record save
 			if (in_array($fieldName,array_keys($_POST)) && $_POST[$fieldName] != "") {
 				foreach ($destinationFields[$index] as $destIndex => $destinationField) {
+				    $daysOrMonths = $daysOrMonthsArray[$index][$destIndex];
 					if ($this->getDateFormat($Proj->metadata[$destinationField]['element_validation_type'],'','php') == "") continue;
 					# Make sure that we want to pipe to other events
 					if ($this->getProjectSetting('pipe-to-event')[$index][$destIndex] == "1") {
@@ -205,6 +206,7 @@ class DateCalculatedFieldsExternalModule extends AbstractExternalModule
 					}
 				}
 			}
+
 			if (!empty($fieldsToSave)) {
 				$output = \Records::saveData($project_id,'array',$fieldsToSave,$overwriteText);
 				if (!empty($output['errors'])) {
