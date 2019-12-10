@@ -11,6 +11,7 @@ namespace Vanderbilt\DateCalculatedFieldsExternalModule;
 use DateTime;
 use ExternalModules\AbstractExternalModule;
 use ExternalModules\ExternalModules;
+use Locking;
 
 class DateCalculatedFieldsExternalModule extends AbstractExternalModule
 {
@@ -44,6 +45,9 @@ class DateCalculatedFieldsExternalModule extends AbstractExternalModule
 		$daysOrMonthsArray = $this->getProjectSetting('days-or-months');
 		$fieldsOnForm = $Proj->forms[$instrument]['fields'];
 
+		$longitudinal = $Proj->longitudinal;
+        $events = array_flip($Proj->getUniqueEventNames());
+
 		foreach ($sourceFields as $index => $fieldName) {
 			$fieldsToSave = array();
 			# Determines whether we want to override data that already exists in a record
@@ -51,6 +55,10 @@ class DateCalculatedFieldsExternalModule extends AbstractExternalModule
 			# Make sure that the field that we're piping was submitted on the record save
 			if (in_array($fieldName,array_keys($_POST)) && $_POST[$fieldName] != "") {
 				foreach ($destinationFields[$index] as $destIndex => $destinationField) {
+                    $Locking = new Locking();
+                    $Locking->findLocked($Proj, $record, array($destinationField), ($longitudinal ? $events : $Proj->firstEventId));
+                    if (isset($Locking->locked[$record][$event_id][$repeat_instance][$destinationField])) continue;
+
 				    $daysOrMonths = $daysOrMonthsArray[$index][$destIndex];
 					if ($this->getDateFormat($Proj->metadata[$destinationField]['element_validation_type'],'','php') == "") continue;
 					# Make sure that we want to pipe to other events
@@ -196,6 +204,7 @@ class DateCalculatedFieldsExternalModule extends AbstractExternalModule
 					# If we're not piping to other events, make sure we pipe to any fields on the same event that aren't on the current data entry form
 					elseif (!in_array($destinationField,array_keys($fieldsOnForm))) {
 						$postDate = new \DateTime(db_real_escape_string($_POST[$fieldName]));
+
                         $componentDate = array('year'=>$postDate->format("Y"),'month'=>$postDate->format("m"),'day'=>$postDate->format('d'),'hour'=>$postDate->format('H'),'minute'=>$postDate->format('i'),'second'=>$postDate->format('s'));
 						//$newDate = date_add($postDate,date_interval_create_from_date_string($daysAdd[$index][$destIndex].' days'));
                         $newDate = $this->generateNewDate($postDate,$daysOrMonths,$daysAdd[$index][$destIndex],$componentDate);
