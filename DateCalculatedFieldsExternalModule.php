@@ -16,18 +16,7 @@ use Locking;
 class DateCalculatedFieldsExternalModule extends AbstractExternalModule
 {
 	function redcap_data_entry_form($project_id, $record, $instrument, $event_id, $group_id = NULL, $repeat_instance = 1) {
-        $ch = curl_init();
-        curl_setopt($ch, CURLOPT_URL, "https://account.box.com/api/oauth2/authorize?response_type=code&client_id=pvcwrubkdzvqs1bw62i5zrqsytzcdad4&redirect_uri=http://vcc.vumc.org");
-        //curl_setopt($ch, CURLOPT_HTTPHEADER, array('Content-Type: application/json', "Authorization: Bearer <ACCESS_TOKEN>"));
-        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-
-        /*$output = curl_exec($ch);
-        echo "<pre>";
-        print_r($output);
-        echo "</pre>";*/
-        curl_close($ch);
-
-		global $Proj;
+	    global $Proj;
 		/*$testString = "[field] - 5+2 - [field2]";
 		$parsed = $this->parseLogicString($testString);
 
