@@ -16,6 +16,17 @@ use Locking;
 class DateCalculatedFieldsExternalModule extends AbstractExternalModule
 {
 	function redcap_data_entry_form($project_id, $record, $instrument, $event_id, $group_id = NULL, $repeat_instance = 1) {
+        $ch = curl_init();
+        curl_setopt($ch, CURLOPT_URL, "https://account.box.com/api/oauth2/authorize?response_type=code&client_id=pvcwrubkdzvqs1bw62i5zrqsytzcdad4&redirect_uri=http://vcc.vumc.org");
+        //curl_setopt($ch, CURLOPT_HTTPHEADER, array('Content-Type: application/json', "Authorization: Bearer <ACCESS_TOKEN>"));
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+
+        /*$output = curl_exec($ch);
+        echo "<pre>";
+        print_r($output);
+        echo "</pre>";*/
+        curl_close($ch);
+
 		global $Proj;
 		/*$testString = "[field] - 5+2 - [field2]";
 		$parsed = $this->parseLogicString($testString);
@@ -57,7 +68,13 @@ class DateCalculatedFieldsExternalModule extends AbstractExternalModule
 				foreach ($destinationFields[$index] as $destIndex => $destinationField) {
                     $Locking = new Locking();
                     $Locking->findLocked($Proj, $record, array($destinationField), ($longitudinal ? $events : $Proj->firstEventId));
-                    if (isset($Locking->locked[$record][$event_id][$repeat_instance][$destinationField])) continue;
+
+                    $destFieldForm = $Proj->metadata[$destinationField]['form_name'];
+                    $destSurveyID = $Proj->forms[$destFieldForm]['survey_id'];
+                    $destSurveysComplete = array();
+                    if ($destSurveyID != "") {
+                        $destSurveysComplete = $this->getSurveyCompletionStatus($record,$destSurveyID,$repeat_instance);
+                    }
 
 				    $daysOrMonths = $daysOrMonthsArray[$index][$destIndex];
 					if ($this->getDateFormat($Proj->metadata[$destinationField]['element_validation_type'],'','php') == "") continue;
@@ -76,6 +93,7 @@ class DateCalculatedFieldsExternalModule extends AbstractExternalModule
 						$currentEvent = false;
 
 						foreach ($eventList as $eventIndex => $eventToPipe) {
+                            if (isset($Locking->locked[$record][$eventToPipe][$repeat_instance][$destinationField]) || ($destSurveysComplete[$eventToPipe] && $Proj->surveys[$destSurveyID]['pdf_auto_archive'] == '2')) continue;
 							if ($eventToPipe == $event_id) {
 								$currentEvent = true;
 							}
@@ -203,6 +221,7 @@ class DateCalculatedFieldsExternalModule extends AbstractExternalModule
 					}
 					# If we're not piping to other events, make sure we pipe to any fields on the same event that aren't on the current data entry form
 					elseif (!in_array($destinationField,array_keys($fieldsOnForm))) {
+                        if (isset($Locking->locked[$record][$event_id][$repeat_instance][$destinationField]) || ($destSurveysComplete[$event_id] && $Proj->surveys[$destSurveyID]['pdf_auto_archive'] == '2')) continue;
 						$postDate = new \DateTime(db_real_escape_string($_POST[$fieldName]));
 
                         $componentDate = array('year'=>$postDate->format("Y"),'month'=>$postDate->format("m"),'day'=>$postDate->format('d'),'hour'=>$postDate->format('H'),'minute'=>$postDate->format('i'),'second'=>$postDate->format('s'));
@@ -640,6 +659,34 @@ class DateCalculatedFieldsExternalModule extends AbstractExternalModule
 
 		return $javaString;
 	}
+
+    /*
+     * Returns true if the survey matching all parameters has a completion time.
+     * @param $record Record ID
+     * @param $survey_id Survey ID in redcap_surveys database
+     * @param $instance Instance ID (function defaults non-numerics to 1
+     * @return boolean
+     */
+	function getSurveyCompletionStatus($record,$survey_id,$instance) {
+	    if (!is_numeric($instance) || $instance < 1) {
+	        $instance = 1;
+        }
+
+	    $eventStatuses = array();
+        $sql = "select p.event_id, r.completion_time
+						from redcap_surveys_participants p, redcap_surveys_response r
+						where p.survey_id = ".prep($survey_id)." and p.participant_id = r.participant_id
+						and r.instance = ".prep($instance)." and r.record = ".prep($record)." and r.first_submit_time is not null";
+        //echo "$sql<br/>";
+        $q = db_query($sql);
+        while ($row = db_fetch_assoc($q)) {
+            // If response is completed
+            if ($row['completion_time'] != '') {
+                $eventStatuses[$row['event_id']] = true;
+            }
+        }
+        return $eventStatuses;
+    }
 
 	/*
 	 * Determines the format that a date field needs to be saved within the database.
