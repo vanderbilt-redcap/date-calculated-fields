@@ -53,7 +53,7 @@ class DateCalculatedFieldsExternalModule extends AbstractExternalModule
 			# Determines whether we want to override data that already exists in a record
 			$overwriteText = ($this->getProjectSetting('source-overwrite')[$index] == "1" ? "overwrite" : "normal");
 			# Make sure that the field that we're piping was submitted on the record save
-			if (in_array($fieldName,array_keys($_POST)) && $_POST[$fieldName] != "") {
+			if (in_array($fieldName,array_keys($_POST)) && $_POST[$fieldName] != "" && $this->validateDate($_POST[$fieldName])) {
 				foreach ($destinationFields[$index] as $destIndex => $destinationField) {
                     $Locking = new Locking();
                     $Locking->findLocked($Proj, $record, array($destinationField), ($longitudinal ? $events : $Proj->firstEventId));
@@ -108,45 +108,12 @@ class DateCalculatedFieldsExternalModule extends AbstractExternalModule
 								$fieldsToSave[$record][$eventToPipe][$destinationField] = $newDate->format($this->getDateFormat($Proj->metadata[$destinationField]['element_validation_type'],'php'));*/
 							}
 
-							/*if ($daysOrMonths == "months") {
-							    $newMonth = $componentDate['month'] + $daysOffset;
-							    $newYear = $componentDate['year'];
-							    $newDay = $componentDate['day'];
-							    while ($newMonth > 12) {
-							        $newMonth -= 12;
-							        $newYear += 1;
-                                }
-                                if ($newMonth == 2) {
-                                    if ($newYear % 4 == 0) {
-                                        if ($newDay > 29) {
-                                            $newDay = 29;
-                                        }
-                                    }
-                                    else {
-                                        if ($newDay > 28) {
-                                            $newDay = 28;
-                                        }
-                                    }
-                                }
-                                elseif ($newDay > self::daysPerMonth[$newMonth]) {
-                                    $newDay = self::daysPerMonth[$newMonth];
-                                }
-                                $newDate = new \DateTime($newYear."-".$newMonth."-".$newDay." ".$componentDate['hour'].":".$componentDate['minute'].":".$componentDate['second']);
-                                $fieldsToSave[$record][$eventToPipe][$destinationField] = $newDate->format($this->dateSaveFormat($Proj->metadata[$destinationField]['element_validation_type']));
-                            }
-							else {
-                                //if ($currentEvent) {
-                                    $newDate = date_add($postDate, date_interval_create_from_date_string($daysOffset . ' days'));
-                                    $fieldsToSave[$record][$eventToPipe][$destinationField] = $newDate->format($this->dateSaveFormat($Proj->metadata[$destinationField]['element_validation_type']));
-                                //}
-                            }*/
 							$newDate = $this->generateNewDate($postDate,$daysOrMonths,$daysOffset,$componentDate);
-							try {
+
+							if (is_a($newDate,'DateTime')) {
                                 $fieldsToSave[$record][$eventToPipe][$destinationField] = $newDate->format($this->dateSaveFormat($Proj->metadata[$destinationField]['element_validation_type']));
                             }
-                            catch (\Exception $e) {
-							    throw new \Exception("An invalid date was returned, giving the following error: ".$e->getMessage());
-                            }
+
 
 							# Make sure whether we need to pipe into a "Start Date" date range field
 							if ($this->getProjectSetting('event-start-date')[$index][$destIndex] != "") {
@@ -168,11 +135,8 @@ class DateCalculatedFieldsExternalModule extends AbstractExternalModule
 									//$startDate = date_add($startDate, date_interval_create_from_date_string($startOffset . ' days'));
                                     $combinedOffset = (int)$daysOffset + (int)$startOffset;
 									$startDate = $this->generateNewDate($postDate,$daysOrMonths,$combinedOffset,$componentDate);
-									try {
+									if (is_a($startDate,'DateTime')) {
                                         $fieldsToSave[$record][$eventToPipe][$this->getProjectSetting('event-start-date')[$index][$destIndex]] = $startDate->format($this->dateSaveFormat($Proj->metadata[$this->getProjectSetting('event-start-date')[$index][$destIndex]]['element_validation_type']));
-                                    }
-                                    catch (\Exception $e) {
-                                        throw new \Exception("An invalid date was returned, giving the following error: ".$e->getMessage());
                                     }
 								}
 							}
@@ -195,12 +159,10 @@ class DateCalculatedFieldsExternalModule extends AbstractExternalModule
 									//$endDate = date_add($endDate, date_interval_create_from_date_string((int)$endOffset . ' days'));
                                     $combinedOffset = (int)$daysOffset + (int)$endOffset;
 									$endDate = $this->generateNewDate($postDate,$daysOrMonths,$combinedOffset,$componentDate);
-									try {
+									if (is_a($endDate,'DateTime')) {
                                         $fieldsToSave[$record][$eventToPipe][$this->getProjectSetting('event-end-date')[$index][$destIndex]] = $endDate->format($this->dateSaveFormat($Proj->metadata[$this->getProjectSetting('event-end-date')[$index][$destIndex]]['element_validation_type']));
                                     }
-                                    catch (\Exception $e) {
-                                        throw new \Exception("An invalid date was returned, giving the following error: ".$e->getMessage());
-                                    }
+
 								}
 							}
 							/*if (!empty($fieldsToSave)) {
@@ -216,7 +178,9 @@ class DateCalculatedFieldsExternalModule extends AbstractExternalModule
                         $componentDate = array('year'=>$postDate->format("Y"),'month'=>$postDate->format("m"),'day'=>$postDate->format('d'),'hour'=>$postDate->format('H'),'minute'=>$postDate->format('i'),'second'=>$postDate->format('s'));
 						//$newDate = date_add($postDate,date_interval_create_from_date_string($daysAdd[$index][$destIndex].' days'));
                         $newDate = $this->generateNewDate($postDate,$daysOrMonths,$daysAdd[$index][$destIndex],$componentDate);
-						$fieldsToSave[$record][$event_id][$destinationField] = $newDate->format($this->dateSaveFormat($Proj->metadata[$destinationField]['element_validation_type']));
+                        if (is_a($newDate,'DateTime')) {
+                            $fieldsToSave[$record][$event_id][$destinationField] = $newDate->format($this->dateSaveFormat($Proj->metadata[$destinationField]['element_validation_type']));
+                        }
 						/*if (!empty($fieldsToSave)) {
 							$output = \Records::saveData($project_id,'array',$fieldsToSave,$overwriteText);
 						}*/
