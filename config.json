@@ -32,6 +32,11 @@
 
   "project-settings": [
     {
+      "key": "error_email",
+      "name": "Report errors to this email address<br>(in addition to logging them)",
+      "type": "text"
+    },
+    {
       "key": "piping-list",
       "name": "Piping Field List",
       "type": "sub_settings",

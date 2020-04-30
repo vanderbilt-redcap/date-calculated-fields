@@ -190,13 +190,34 @@ class DateCalculatedFieldsExternalModule extends AbstractExternalModule
 
 			if (!empty($fieldsToSave)) {
 				$output = \Records::saveData($project_id,'array',$fieldsToSave,$overwriteText);
-				if (!empty($output['errors'])) {
+				/*if (!empty($output['errors'])) {
                     $errorString = stripslashes(json_encode($output['errors'], JSON_PRETTY_PRINT));
                     $errorString = str_replace('""', '"', $errorString);
 
                     $message = "The " . $this->getModuleName() . " module could not save updated date fields because of the following error(s):\n\n$errorString";
                     error_log($message);
                     throw new \Exception($message);
+                }*/
+                if(!empty($output['errors'])){
+                    $errorString = stripslashes(json_encode($output['errors'], JSON_PRETTY_PRINT));
+                    $errorString = str_replace('""', '"', $errorString);
+
+                    $message = "The " . $this->getModuleName() . " module could not save updated date fields because of the following error(s):\n\n$errorString";
+                    error_log($message);
+
+                    $errorEmail = $this->getProjectSetting('error_email');
+                    if (empty($errorEmail)) $errorEmail = "james.r.moore@vumc.org";
+                    if(!empty($errorEmail)){
+                        ## Add check for universal from email address
+                        global $from_email;
+                        if($from_email != '') {
+                            $headers = "From: ".$from_email."\r\n";
+                        }
+                        else {
+                            $headers = null;
+                        }
+                        mail($errorEmail, $this->getModuleName() . " Module Error", $message, $headers);
+                    }
                 }
 			}
 		}
