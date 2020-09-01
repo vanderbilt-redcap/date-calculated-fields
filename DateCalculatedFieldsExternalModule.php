@@ -53,7 +53,16 @@ class DateCalculatedFieldsExternalModule extends AbstractExternalModule
 			# Determines whether we want to override data that already exists in a record
 			$overwriteText = ($this->getProjectSetting('source-overwrite')[$index] == "1" ? "overwrite" : "normal");
 			# Make sure that the field that we're piping was submitted on the record save
-			if (in_array($fieldName,array_keys($_POST)) && $_POST[$fieldName] != "" && $this->validateDate($_POST[$fieldName])) {
+            $sourceFormat = "Y-m-d";
+            if (strpos($Proj->metadata[$fieldName]['element_validation_type'],'datetime') !== false) {
+                if (strpos($Proj->metadata[$fieldName]['element_validation_type'],'datetime_seconds') !== false) {
+                    $sourceFormat = "Y-m-d H:i:s";
+                }
+                else {
+                    $sourceFormat = "Y-m-d H:i";
+                }
+            }
+			if (in_array($fieldName,array_keys($_POST)) && $_POST[$fieldName] != "" && $this->validateDate($_POST[$fieldName],$sourceFormat)) {
 				foreach ($destinationFields[$index] as $destIndex => $destinationField) {
                     $Locking = new Locking();
                     $Locking->findLocked($Proj, $record, array($destinationField), ($longitudinal ? $events : $Proj->firstEventId));
@@ -187,7 +196,6 @@ class DateCalculatedFieldsExternalModule extends AbstractExternalModule
 					}
 				}
 			}
-
 			if (!empty($fieldsToSave)) {
 				$output = \Records::saveData($project_id,'array',$fieldsToSave,$overwriteText);
 				/*if (!empty($output['errors'])) {
@@ -198,6 +206,7 @@ class DateCalculatedFieldsExternalModule extends AbstractExternalModule
                     error_log($message);
                     throw new \Exception($message);
                 }*/
+
                 if(!empty($output['errors'])){
                     $errorString = stripslashes(json_encode($output['errors'], JSON_PRETTY_PRINT));
                     $errorString = str_replace('""', '"', $errorString);
@@ -221,7 +230,7 @@ class DateCalculatedFieldsExternalModule extends AbstractExternalModule
                 }
 			}
 		}
-		//exit;
+		//$this->exitAfterHook();
 	}
 
 	function redcap_module_link_check_display($project_id, $link, $record, $instrument, $instance, $page) {
