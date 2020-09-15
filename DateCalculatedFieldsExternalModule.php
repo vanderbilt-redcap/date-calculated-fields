@@ -501,6 +501,7 @@ class DateCalculatedFieldsExternalModule extends AbstractExternalModule
                             }
                         }
                     }
+                    $javaString .= "$('input[name=$destinationField]').change();";
                 }
                 $javaString .= "}
 					});";
@@ -593,6 +594,7 @@ class DateCalculatedFieldsExternalModule extends AbstractExternalModule
                             $javaString .= ");";
                         }
                     }
+                    $javaString .= "$('input[name=$destinationField]').change();";
                 }
             }
         }
