@@ -233,13 +233,6 @@ class DateCalculatedFieldsExternalModule extends AbstractExternalModule
 		//$this->exitAfterHook();
 	}
 
-	function redcap_module_link_check_display($project_id, $link, $record, $instrument, $instance, $page) {
-		if(\REDCap::getUserRights(USERID)[USERID]['design'] == '1'){
-			return $link;
-		}
-		return null;
-	}
-
 	function generateNewDate($postDate,$daysOrMonths,$daysOffset,$componentDate) {
         $daysPerMonth = array(
             1=>31,

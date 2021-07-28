@@ -16,7 +16,6 @@
   "permissions": [
     "redcap_every_page_before_render",
     "select_data",
-    "redcap_module_link_check_display",
     "redcap_data_entry_form",
     "redcap_survey_page",
     "redcap_save_record"
