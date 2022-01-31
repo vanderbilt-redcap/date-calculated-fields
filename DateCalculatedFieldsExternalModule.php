@@ -257,6 +257,10 @@ class DateCalculatedFieldsExternalModule extends AbstractExternalModule
                 $newMonth -= 12;
                 $newYear += 1;
             }
+            while ($newMonth <= 0) {
+                $newMonth += 12;
+                $newYear -= 1;
+            }
             if ($newMonth == 2) {
                 if ($newYear % 4 == 0) {
                     if ($newDay > 29) {
@@ -272,6 +276,7 @@ class DateCalculatedFieldsExternalModule extends AbstractExternalModule
             elseif ($newDay > $daysPerMonth[$newMonth]) {
                 $newDay = $daysPerMonth[$newMonth];
             }
+
             $newDate = new \DateTime($newYear."-".$newMonth."-".$newDay." ".$componentDate['hour'].":".$componentDate['minute'].":".$componentDate['second']);
         }
         else {
