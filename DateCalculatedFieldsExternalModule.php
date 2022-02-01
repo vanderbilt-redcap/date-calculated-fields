@@ -28,6 +28,8 @@ class DateCalculatedFieldsExternalModule extends AbstractExternalModule
 		echo "<pre>";
 		print_r($metaData);
 		echo "</pre>";*/
+        $recordData = \Records::getData($project_id,'array',array($record),array(),array(),array($group_id));
+
 		echo $this->createCalcuationJava($Proj,$instrument,$record,$event_id,$repeat_instance);
 	}
 
@@ -103,7 +105,8 @@ class DateCalculatedFieldsExternalModule extends AbstractExternalModule
 							if ($eventToPipe == $event_id && in_array($destinationField,$fieldsOnForm)) continue;
 
 							$eventInfo = $Proj->eventInfo[$eventToPipe];
-							$daysOffset = "";
+
+                            $daysOffset = "";
 							# If we don't specify the number of days to add per event in the project, use the project's event days offset setting
 							if ($daysAdd[$index][$destIndex] != "") {
 								//$daysOffset = $daysAdd[$index][$destIndex] * (($eventIndex - $currentEventIndex)+1);
@@ -120,7 +123,8 @@ class DateCalculatedFieldsExternalModule extends AbstractExternalModule
 							$newDate = $this->generateNewDate($postDate,$daysOrMonths,$daysOffset,$componentDate);
 
 							if (is_a($newDate,'DateTime')) {
-                                $fieldsToSave[$record][$eventToPipe][$destinationField] = $newDate->format($this->dateSaveFormat($Proj->metadata[$destinationField]['element_validation_type']));
+                                //$fieldsToSave[$record][$eventToPipe][$destinationField] = $newDate->format($this->dateSaveFormat($Proj->metadata[$destinationField]['element_validation_type']));
+                                $this->setSaveData($fieldsToSave,$Proj,$record,$destinationField,$newDate,$eventToPipe,$repeat_instance);
                             }
 
 
@@ -145,7 +149,8 @@ class DateCalculatedFieldsExternalModule extends AbstractExternalModule
                                     $combinedOffset = (int)$daysOffset + (int)$startOffset;
 									$startDate = $this->generateNewDate($postDate,$daysOrMonths,$combinedOffset,$componentDate);
 									if (is_a($startDate,'DateTime')) {
-                                        $fieldsToSave[$record][$eventToPipe][$this->getProjectSetting('event-start-date')[$index][$destIndex]] = $startDate->format($this->dateSaveFormat($Proj->metadata[$this->getProjectSetting('event-start-date')[$index][$destIndex]]['element_validation_type']));
+									    $startDateField = $this->getProjectSetting('event-start-date')[$index][$destIndex];
+									    $this->setSaveData($fieldsToSave,$Proj,$record,$startDateField,$startDate,$eventToPipe,$repeat_instance);
                                     }
 								}
 							}
@@ -169,7 +174,9 @@ class DateCalculatedFieldsExternalModule extends AbstractExternalModule
                                     $combinedOffset = (int)$daysOffset + (int)$endOffset;
 									$endDate = $this->generateNewDate($postDate,$daysOrMonths,$combinedOffset,$componentDate);
 									if (is_a($endDate,'DateTime')) {
-                                        $fieldsToSave[$record][$eventToPipe][$this->getProjectSetting('event-end-date')[$index][$destIndex]] = $endDate->format($this->dateSaveFormat($Proj->metadata[$this->getProjectSetting('event-end-date')[$index][$destIndex]]['element_validation_type']));
+									    $endDateField = $this->getProjectSetting('event-end-date')[$index][$destIndex];
+                                        //$fieldsToSave[$record][$eventToPipe][$this->getProjectSetting('event-end-date')[$index][$destIndex]] = $endDate->format($this->dateSaveFormat($Proj->metadata[$this->getProjectSetting('event-end-date')[$index][$destIndex]]['element_validation_type']));
+                                        $this->setSaveData($fieldsToSave,$Proj,$record,$endDate,$endDate,$eventToPipe,$repeat_instance);
                                     }
 
 								}
@@ -188,7 +195,8 @@ class DateCalculatedFieldsExternalModule extends AbstractExternalModule
 						//$newDate = date_add($postDate,date_interval_create_from_date_string($daysAdd[$index][$destIndex].' days'));
                         $newDate = $this->generateNewDate($postDate,$daysOrMonths,$daysAdd[$index][$destIndex],$componentDate);
                         if (is_a($newDate,'DateTime')) {
-                            $fieldsToSave[$record][$event_id][$destinationField] = $newDate->format($this->dateSaveFormat($Proj->metadata[$destinationField]['element_validation_type']));
+                            //$fieldsToSave[$record][$event_id][$destinationField] = $newDate->format($this->dateSaveFormat($Proj->metadata[$destinationField]['element_validation_type']));
+                            $this->setSaveData($fieldsToSave,$Proj,$record,$destinationField,$newDate,$event_id,$repeat_instance);
                         }
 						/*if (!empty($fieldsToSave)) {
 							$output = \Records::saveData($project_id,'array',$fieldsToSave,$overwriteText);
@@ -780,5 +788,21 @@ class DateCalculatedFieldsExternalModule extends AbstractExternalModule
         $d = DateTime::createFromFormat($format, $date);
         // The Y ( 4 digits year ) returns TRUE for any integer with any number of digits so changing the comparison from == to === fixes the issue.
         return $d && $d->format($format) === $date;
+    }
+
+    function setSaveData(&$fieldsToSave,$project,$record,$fieldName,$date,$event_id,$repeat_instance = 1) {
+        $destFieldForm = $project->metadata[$fieldName]['form_name'];
+        $destEventRepeats = $project->isRepeatingEvent($event_id);
+        $destInstrumentRepeats = $project->isRepeatingForm($event_id, $destFieldForm);
+
+        if ($destEventRepeats) {
+            $fieldsToSave[$record]['repeat_instances'][$event_id][][$repeat_instance][$fieldName] = $date->format($this->dateSaveFormat($project->metadata[$fieldName]['element_validation_type']));
+        }
+        elseif ($destInstrumentRepeats) {
+            $fieldsToSave[$record]['repeat_instances'][$event_id][$destFieldForm][$repeat_instance][$fieldName] = $date->format($this->dateSaveFormat($project->metadata[$fieldName]['element_validation_type']));
+        }
+        else {
+            $fieldsToSave[$record][$event_id][$fieldName] = $date->format($this->dateSaveFormat($project->metadata[$fieldName]['element_validation_type']));
+        }
     }
 }
