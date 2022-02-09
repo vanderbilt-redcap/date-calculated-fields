@@ -157,6 +157,7 @@ class DateCalculatedFieldsExternalModule extends AbstractExternalModule
 							# Make sure whether we need to pipe into a "End Date" date range field
 							if ($this->getProjectSetting('event-end-date')[$index][$destIndex] != "") {
 								$eventsWithEnd = $Proj->getEventsFormDesignated($Proj->metadata[$this->getProjectSetting('event-end-date')[$index][$destIndex]]['form_name']);
+
 								if (in_array($eventToPipe,$eventsWithEnd)) {
 									$postDate = new \DateTime(db_real_escape_string($_POST[$fieldName]));
 									$endOffset = "";
@@ -173,10 +174,11 @@ class DateCalculatedFieldsExternalModule extends AbstractExternalModule
 									//$endDate = date_add($endDate, date_interval_create_from_date_string((int)$endOffset . ' days'));
                                     $combinedOffset = (int)$daysOffset + (int)$endOffset;
 									$endDate = $this->generateNewDate($postDate,$daysOrMonths,$combinedOffset,$componentDate);
+
 									if (is_a($endDate,'DateTime')) {
 									    $endDateField = $this->getProjectSetting('event-end-date')[$index][$destIndex];
                                         //$fieldsToSave[$record][$eventToPipe][$this->getProjectSetting('event-end-date')[$index][$destIndex]] = $endDate->format($this->dateSaveFormat($Proj->metadata[$this->getProjectSetting('event-end-date')[$index][$destIndex]]['element_validation_type']));
-                                        $this->setSaveData($fieldsToSave,$Proj,$record,$endDate,$endDate,$eventToPipe,$repeat_instance);
+                                        $this->setSaveData($fieldsToSave,$Proj,$record,$endDateField,$endDate,$eventToPipe,$repeat_instance);
                                     }
 
 								}
