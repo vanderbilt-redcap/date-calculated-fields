@@ -291,7 +291,7 @@ class DateCalculatedFieldsExternalModule extends AbstractExternalModule
         }
         else {
             //if ($currentEvent) {
-            $newDate = date_add($postDate, date_interval_create_from_date_string($daysOffset*24 . ' hours'));
+            $newDate = date_add($postDate, \DateInterval::createFromDateString((int)$daysOffset . ' days'));
             //}
         }
         return $newDate;
