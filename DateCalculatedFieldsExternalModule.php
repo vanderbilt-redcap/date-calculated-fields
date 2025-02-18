@@ -517,7 +517,7 @@ class DateCalculatedFieldsExternalModule extends AbstractExternalModule
 
             $sourceFieldForm = $project->metadata[$fieldName]['form_name'];
 
-            $sourceDate = ($recordData[$record_id]['repeat_instances'][$event_id][$sourceFieldForm][intval($instance) - 1][$fieldName] != "" ? $recordData[$record_id]['repeat_instances'][$event_id][$sourceFieldForm][intval($instance) - 1][$fieldName] : $recordData[$record_id][$event_id][$fieldName]);
+            $sourceDate = ($recordData[$record_id]['repeat_instances'][$event_id][$sourceFieldForm][intval($instance) - 1][$fieldName] ?? ($recordData[$record_id][$event_id][$fieldName] ?? ''));
             if (!$this->validateDate($sourceDate)) continue;
 
             $javaString .= "var instancedate = new Date('$sourceDate');";
